@@ -7,6 +7,7 @@ import com.proyecto.servicios.model.gestopago.GestoPagoAuthResponse;
 import com.proyecto.servicios.repositorys.gestopago.GestoPagoTokenRepository;
 import com.proyecto.servicios.service.GestoPagoTokenService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -17,9 +18,14 @@ import java.util.Optional;
 @Slf4j
 public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
 
-    private final GestoPagoAuthClient gestoPagoAuthClient;
-    private final GestoPagoTokenRepository tokenRepository;
-    private final GestoPagoTokenMapper tokenMapper;
+    @Autowired
+    private GestoPagoAuthClient gestoPagoAuthClient;
+    
+    @Autowired
+    private GestoPagoTokenRepository tokenRepository;
+    
+    @Autowired
+    private GestoPagoTokenMapper tokenMapper;
 
     @Value("${gestopago.auth.id-distribuidor}")
     private Integer idDistribuidor;
@@ -29,14 +35,6 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
 
     @Value("${gestopago.auth.password}")
     private String password;
-
-    public GestoPagoTokenServiceImpl(GestoPagoAuthClient gestoPagoAuthClient,
-                                     GestoPagoTokenRepository tokenRepository,
-                                     GestoPagoTokenMapper tokenMapper) {
-        this.gestoPagoAuthClient = gestoPagoAuthClient;
-        this.tokenRepository = tokenRepository;
-        this.tokenMapper = tokenMapper;
-    }
 
     @Override
     @Scheduled(fixedRateString = "${gestopago.auth.refresh-rate-ms:3600000}", initialDelay = 0)
@@ -48,7 +46,7 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
 
             if (response == null || response.getToken() == null) {
                 log.error("La respuesta de GestoPago no contiene token");
-                return;
+                throw new RuntimeException("Respuesta de GestoPago Auth sin token");
             }
 
             GestoPagoToken tokenEntity = tokenRepository
@@ -70,6 +68,7 @@ public class GestoPagoTokenServiceImpl implements GestoPagoTokenService {
 
         } catch (Exception e) {
             log.error("Error al renovar token GestoPago: {}", e.getMessage(), e);
+            throw new RuntimeException("Error fatal en el ciclo de renovacion del token de Gestopago", e);
         }
     }
 

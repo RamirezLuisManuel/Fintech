@@ -4,10 +4,13 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.proyecto.servicios.client.GestoPagoServiceClient;
 import com.proyecto.servicios.entity.gestopago.GestoPagoProduct;
+import com.proyecto.servicios.mapper.GestoPagoProductMapper;
+import com.proyecto.servicios.model.gestopago.GestoPagoProductDTO;
 import com.proyecto.servicios.repositorys.gestopago.GestoPagoProductRepository;
 import com.proyecto.servicios.service.GestoPagoXmlParser;
 import feign.FeignException;
 import feign.Request;
+import feign.Response;
 import feign.RetryableException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +46,9 @@ class GestoPagoProductServiceImplTest {
     private GestoPagoXmlParser xmlParser;
 
     @Mock
+    private GestoPagoProductMapper productMapper;
+
+    @Mock
     private RedisTemplate<String, Object> redisTemplate;
 
     @Mock
@@ -52,6 +58,7 @@ class GestoPagoProductServiceImplTest {
     private GestoPagoProductServiceImpl productService;
 
     private List<GestoPagoProduct> mockProductList;
+    private List<GestoPagoProductDTO> mockDtoList;
 
     @BeforeEach
     void setUp() {
@@ -60,6 +67,12 @@ class GestoPagoProductServiceImplTest {
         product.setProducto("Recarga Telcel 50");
         product.setPrecio(50.0);
         mockProductList = List.of(product);
+
+        GestoPagoProductDTO dto = new GestoPagoProductDTO();
+        dto.setIdProducto(123);
+        dto.setProducto("Recarga Telcel 50");
+        dto.setPrecio(50.0);
+        mockDtoList = List.of(dto);
         
         // Mock default leniency for Redis ops
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
@@ -69,9 +82,10 @@ class GestoPagoProductServiceImplTest {
     void testGetProductList_SuccessFromRedis() {
         // Arrange
         when(valueOperations.get("gestopago_products")).thenReturn(mockProductList);
+        when(productMapper.toDtoList(anyList())).thenReturn(mockDtoList);
 
         // Act
-        List<GestoPagoProduct> result = productService.getProductList();
+        List<GestoPagoProductDTO> result = productService.getProductList();
 
         // Assert
         assertNotNull(result);
@@ -86,9 +100,10 @@ class GestoPagoProductServiceImplTest {
         // Arrange
         when(valueOperations.get("gestopago_products")).thenReturn(null); // Redis vacio
         when(productRepository.findAll()).thenReturn(mockProductList); // Postgres con datos
+        when(productMapper.toDtoList(anyList())).thenReturn(mockDtoList);
 
         // Act
-        List<GestoPagoProduct> result = productService.getProductList();
+        List<GestoPagoProductDTO> result = productService.getProductList();
 
         // Assert
         assertNotNull(result);
@@ -104,12 +119,18 @@ class GestoPagoProductServiceImplTest {
         when(valueOperations.get("gestopago_products")).thenReturn(null);
         when(productRepository.findAll()).thenReturn(Collections.emptyList());
         
-        String dummyXml = "<root></root>";
-        when(gestoPagoServiceClient.getProductList()).thenReturn(dummyXml);
-        when(xmlParser.parseXml(dummyXml)).thenReturn(mockProductList);
+        Response mockResponse = Response.builder()
+            .status(200)
+            .request(Request.create(Request.HttpMethod.GET, "url", Collections.emptyMap(), null, StandardCharsets.UTF_8, null))
+            .body("<root></root>", StandardCharsets.UTF_8)
+            .build();
+            
+        when(gestoPagoServiceClient.getProductList()).thenReturn(mockResponse);
+        when(xmlParser.parseXml(anyString())).thenReturn(mockProductList);
+        when(productMapper.toDtoList(anyList())).thenReturn(mockDtoList);
 
         // Act
-        List<GestoPagoProduct> result = productService.getProductList();
+        List<GestoPagoProductDTO> result = productService.getProductList();
 
         // Assert
         assertNotNull(result);
