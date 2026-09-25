@@ -4,31 +4,31 @@ import com.proyecto.servicios.client.GestoPagoServiceClient;
 import com.proyecto.servicios.entity.gestopago.GestoPagoProduct;
 import com.proyecto.servicios.repositorys.gestopago.GestoPagoProductRepository;
 import com.proyecto.servicios.service.GestoPagoXmlParser;
+import com.proyecto.servicios.util.Constants;
+import feign.Response;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.IOUtils;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Service
+
 @Slf4j
 public class GestoPagoSyncServiceImpl {
 
-    private final GestoPagoServiceClient gestoPagoServiceClient;
-    private final GestoPagoXmlParser xmlParser;
-    private final GestoPagoProductRepository productRepository;
-    private final RedisTemplate<String, Object> redisTemplate;
-
-    public GestoPagoSyncServiceImpl(GestoPagoServiceClient gestoPagoServiceClient,
-                                    GestoPagoXmlParser xmlParser,
-                                    GestoPagoProductRepository productRepository,
-                                    RedisTemplate<String, Object> redisTemplate) {
-        this.gestoPagoServiceClient = gestoPagoServiceClient;
-        this.xmlParser = xmlParser;
-        this.productRepository = productRepository;
-        this.redisTemplate = redisTemplate;
-    }
+    @Autowired
+    private GestoPagoServiceClient gestoPagoServiceClient;
+    @Autowired
+    private GestoPagoXmlParser xmlParser;
+    @Autowired
+    private GestoPagoProductRepository productRepository;
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
 
     @jakarta.annotation.PostConstruct
     public void initSync() {
@@ -40,23 +40,26 @@ public class GestoPagoSyncServiceImpl {
     public void syncProducts() {
         log.info("Iniciando sincronizacion nocturna de productos Gestopago...");
         try {
-            String rawXml = gestoPagoServiceClient.getProductList();
+            Response feignResponse = gestoPagoServiceClient.getProductList();
+            String rawXml = IOUtils.toString(feignResponse.body().asInputStream(), StandardCharsets.UTF_8);
+
             List<GestoPagoProduct> productos = xmlParser.parseXml(rawXml);
-            
             long oldSize = productRepository.count();
-            
+
             if (productos != null && productos.size() > oldSize) {
-                // Guarda en Postgres
-                productRepository.saveAll(productos);
-                // Guarda en Redis
-                redisTemplate.opsForValue().set("gestopago_products", productos);
-                log.info("Sincronizacion de GestoPago finalizada. Productos cacheados en Postgres y Redis: {}", productos.size());
+                saveToDatabases(productos);
+                log.info("Sincronizacion de GestoPago finalizada. Productos cacheados: {}", productos.size());
             } else {
-                log.warn("Sincronizacion ignorada: El nuevo tamano ({}) no es mayor al anterior ({}).", 
-                    (productos != null ? productos.size() : 0), oldSize);
+                log.warn("Sincronizacion ignorada: El nuevo tamano ({}) no es mayor al anterior ({}).",
+                        (productos != null ? productos.size() : 0), oldSize);
             }
         } catch (Exception e) {
             log.error("Fallo la sincronizacion nocturna de productos GestoPago: {}", e.getMessage(), e);
         }
+    }
+
+    private void saveToDatabases(List<GestoPagoProduct> productos) {
+        productRepository.saveAll(productos);
+        redisTemplate.opsForValue().set(Constants.REDIS_KEY_GESTOPAGO_PRODUCTS, productos);
     }
 }

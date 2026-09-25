@@ -8,6 +8,7 @@ import com.proyecto.servicios.repositorys.UsuarioRepository;
 import com.proyecto.servicios.service.JwtService;
 import com.proyecto.servicios.service.UsuarioService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -23,16 +24,16 @@ import java.util.Random;
 @Slf4j
 public class UsuarioServiceImpl implements UsuarioService {
 
-    private final UsuarioRepository usuarioRepository;
-    private final JwtService jwtService;
-    private final RedisTemplate<String, Object> redisTemplate;
+    @Autowired
+    private UsuarioRepository usuarioRepository;
+    
+    @Autowired
+    private JwtService jwtService;
+    
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+    
     private static final String REDIS_SESSION_PREFIX = "user_session:";
-
-    public UsuarioServiceImpl(UsuarioRepository usuarioRepository, JwtService jwtService, RedisTemplate<String, Object> redisTemplate) {
-        this.usuarioRepository = usuarioRepository;
-        this.jwtService = jwtService;
-        this.redisTemplate = redisTemplate;
-    }
 
     @Override
     public AuthResponse register(RegisterRequest request) {
@@ -98,9 +99,8 @@ public class UsuarioServiceImpl implements UsuarioService {
             }
         } catch (Exception e) {
             log.error("Error al consultar Postgres, recurriendo a Redis: {}", e.getMessage());
-            // Si Postgres falla, idealmente tendríamos los usuarios completos en Redis.
-            // Para simplificar, asumiremos que si hay sesión en Redis, el usuario existe.
-            // Nota: En una app real de producción haríamos caché de la entidad Usuario completa.
+            // Si Postgres falla, idealmente tendriamos los usuarios completos en Redis.
+            // Para simplificar, asumiremos que si hay sesion en Redis, el usuario existe.
         }
         return usuarioRepository.findByEmail(email).orElse(null); // Fallback normal
     }
@@ -111,7 +111,6 @@ public class UsuarioServiceImpl implements UsuarioService {
         for (int i = 0; i < 10; i++) {
             cuenta.append(random.nextInt(10));
         }
-        // Verificar que no exista (poco probable con 10 digitos, pero seguro)
         while(usuarioRepository.existsByNumeroCuenta(cuenta.toString())) {
             cuenta = new StringBuilder();
             for (int i = 0; i < 10; i++) {
