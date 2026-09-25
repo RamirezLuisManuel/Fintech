@@ -1,7 +1,8 @@
 package com.proyecto.servicios.controller;
 
-import com.proyecto.servicios.entity.gestopago.GestoPagoProduct;
+import com.proyecto.servicios.model.gestopago.GestoPagoProductDTO;
 import com.proyecto.servicios.service.GestoPagoProductService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,16 +15,12 @@ import java.util.List;
 @RequestMapping("/api/v1/gestopago")
 public class GestoPagoProductController {
 
-    private final GestoPagoProductService gestoPagoProductService;
-
-    public GestoPagoProductController(GestoPagoProductService gestoPagoProductService) {
-        this.gestoPagoProductService = gestoPagoProductService;
-    }
+    @Autowired
+    private GestoPagoProductService gestoPagoProductService;
 
     @GetMapping(value = "/products", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<GestoPagoProduct>> getProductList() {
-        List<GestoPagoProduct> response = gestoPagoProductService.getProductList();
+    public ResponseEntity<List<GestoPagoProductDTO>> getProductList() {
+        List<GestoPagoProductDTO> response = gestoPagoProductService.getProductList();
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
-
 }
