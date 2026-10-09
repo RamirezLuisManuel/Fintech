@@ -12,23 +12,48 @@ import java.time.LocalDateTime;
 @Setter
 @NoArgsConstructor
 public class Usuario {
-    
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
-    @Column(nullable = false, unique = true)
-    private String email;
-    
-    @Column(nullable = false)
+
+    @OneToOne
+    @JoinColumn(name = "cliente_id", referencedColumnName = "id", nullable = false, unique = true)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private Cliente cliente;
+
+    @Column(nullable = false, length = 255)
     private String password;
-    
-    @Column(name = "numero_cuenta", nullable = false, unique = true)
-    private String numeroCuenta;
-    
+
+    @Column(nullable = false, length = 20)
+    private String rol = "CLIENTE";
+
+    @Column(name = "face_id_enabled", nullable = false)
+    private Boolean faceIdEnabled = false;
+
+    @Column(name = "face_id_hash")
+    private String faceIdHash;
+
     @Column(name = "refresh_token")
     private String refreshToken;
-    
-    @Column(name = "created_at")
+
+    @Column(nullable = false)
+    private Boolean activo = true;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt = LocalDateTime.now();
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 }

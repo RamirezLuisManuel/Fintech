@@ -10,7 +10,7 @@ import jakarta.validation.constraints.NotBlank;
 public class AuthRequest {
     @NotBlank
     @Email
-    private String email;
+    private String correo;
     
     @NotBlank
     private String password;
