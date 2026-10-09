@@ -9,6 +9,7 @@ import com.proyecto.servicios.service.JwtService;
 import com.proyecto.servicios.service.UsuarioService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -18,11 +19,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.Optional;
-import java.util.Random;
 
 @Service
 @Slf4j
 public class UsuarioServiceImpl implements UsuarioService {
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @Autowired
     private UsuarioRepository usuarioRepository;
@@ -37,87 +40,34 @@ public class UsuarioServiceImpl implements UsuarioService {
 
     @Override
     public AuthResponse register(RegisterRequest request) {
-        if (usuarioRepository.existsByEmail(request.getEmail())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "El email ya esta registrado");
-        }
-
-        Usuario usuario = new Usuario();
-        usuario.setEmail(request.getEmail());
-        usuario.setPassword(hashPassword(request.getPassword()));
-        usuario.setNumeroCuenta(generarNumeroCuenta());
-
-        String accessToken = jwtService.generateToken(usuario.getEmail());
-        String refreshToken = jwtService.generateRefreshToken(usuario.getEmail());
-        usuario.setRefreshToken(refreshToken);
-
-        usuarioRepository.save(usuario);
-        
-        // Guardar sesion activa en Redis
-        redisTemplate.opsForValue().set(REDIS_SESSION_PREFIX + usuario.getEmail(), refreshToken);
-
-        log.info("Usuario registrado exitosamente. Cuenta: {}", usuario.getNumeroCuenta());
-        return new AuthResponse(accessToken, refreshToken, usuario.getNumeroCuenta());
+        // Logica dummy temporal para que compile.
+        // Se reemplazara en la Fase 4 con OnboardingService.
+        return new AuthResponse("dummy_access", "dummy_refresh", "12345");
     }
 
     @Override
     public AuthResponse login(AuthRequest request) {
-        Usuario usuario = buscarUsuarioConFallback(request.getEmail());
+        Usuario usuario = usuarioRepository.findByClienteCorreo(request.getCorreo()).orElse(null);
         
-        if (usuario == null || !usuario.getPassword().equals(hashPassword(request.getPassword()))) {
+        if (usuario == null || !passwordEncoder.matches(request.getPassword(), usuario.getPassword())) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Credenciales invalidas");
         }
 
-        // Matar sesion anterior si existiera en Redis
-        redisTemplate.delete(REDIS_SESSION_PREFIX + usuario.getEmail());
-        log.info("Sesion anterior terminada para el usuario {}", usuario.getEmail());
-
-        // Generar nueva sesion
-        String newAccessToken = jwtService.generateToken(usuario.getEmail());
-        String newRefreshToken = jwtService.generateRefreshToken(usuario.getEmail());
-
-        // Actualizar en DB
-        try {
-            usuario.setRefreshToken(newRefreshToken);
-            usuarioRepository.save(usuario);
-        } catch (Exception e) {
-            log.warn("No se pudo guardar la sesion en Postgres. Se mantendra solo en Redis.");
+        if (Boolean.FALSE.equals(usuario.getActivo())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "El usuario ha sido dado de baja");
         }
 
-        // Guardar nueva sesion en Redis
-        redisTemplate.opsForValue().set(REDIS_SESSION_PREFIX + usuario.getEmail(), newRefreshToken);
+        redisTemplate.delete(REDIS_SESSION_PREFIX + usuario.getCliente().getCorreo());
         
-        log.info("Inicio de sesion exitoso para el usuario {}", usuario.getEmail());
-        return new AuthResponse(newAccessToken, newRefreshToken, usuario.getNumeroCuenta());
-    }
+        String newAccessToken = jwtService.generateToken(usuario.getCliente().getCorreo());
+        String newRefreshToken = jwtService.generateRefreshToken(usuario.getCliente().getCorreo());
 
-    private Usuario buscarUsuarioConFallback(String email) {
-        try {
-            // Intentar primero en DB Postgres
-            Optional<Usuario> usuarioDb = usuarioRepository.findByEmail(email);
-            if (usuarioDb.isPresent()) {
-                return usuarioDb.get();
-            }
-        } catch (Exception e) {
-            log.error("Error al consultar Postgres, recurriendo a Redis: {}", e.getMessage());
-            // Si Postgres falla, idealmente tendriamos los usuarios completos en Redis.
-            // Para simplificar, asumiremos que si hay sesion en Redis, el usuario existe.
-        }
-        return usuarioRepository.findByEmail(email).orElse(null); // Fallback normal
-    }
+        usuario.setRefreshToken(newRefreshToken);
+        usuarioRepository.save(usuario);
 
-    private String generarNumeroCuenta() {
-        Random random = new Random();
-        StringBuilder cuenta = new StringBuilder();
-        for (int i = 0; i < 10; i++) {
-            cuenta.append(random.nextInt(10));
-        }
-        while(usuarioRepository.existsByNumeroCuenta(cuenta.toString())) {
-            cuenta = new StringBuilder();
-            for (int i = 0; i < 10; i++) {
-                cuenta.append(random.nextInt(10));
-            }
-        }
-        return cuenta.toString();
+        redisTemplate.opsForValue().set(REDIS_SESSION_PREFIX + usuario.getCliente().getCorreo(), newRefreshToken);
+        
+        return new AuthResponse(newAccessToken, newRefreshToken, "dummy_cuenta");
     }
 
     private String hashPassword(String password) {
