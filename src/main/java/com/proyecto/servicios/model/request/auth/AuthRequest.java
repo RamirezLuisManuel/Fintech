@@ -1,19 +1,17 @@
-package com.proyecto.servicios.model;
+package com.proyecto.servicios.model.request.auth;
 
 import lombok.Getter;
 import lombok.Setter;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 
 @Getter
 @Setter
-public class RegisterRequest {
+public class AuthRequest {
     @NotBlank
     @Email
-    private String email;
+    private String correo;
     
     @NotBlank
-    @Size(min = 6)
     private String password;
 }

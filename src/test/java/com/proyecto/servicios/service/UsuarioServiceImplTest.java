@@ -2,8 +2,8 @@ package com.proyecto.servicios.service;
 
 import com.proyecto.servicios.entity.Cliente;
 import com.proyecto.servicios.entity.Usuario;
-import com.proyecto.servicios.model.AuthRequest;
-import com.proyecto.servicios.model.AuthResponse;
+import com.proyecto.servicios.model.request.auth.AuthRequest;
+import com.proyecto.servicios.model.response.AuthResponse;
 import com.proyecto.servicios.repositorys.UsuarioRepository;
 import com.proyecto.servicios.service.Impl.UsuarioServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +17,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.server.ResponseStatusException;
+import com.proyecto.servicios.exception.RecursoInactivoException;
 import org.springframework.http.HttpStatus;
 import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.*;
@@ -127,8 +128,7 @@ class UsuarioServiceImplTest {
         usuarioActivo.setActivo(false);
         when(usuarioRepository.findByClienteCorreo("juan@test.com")).thenReturn(Optional.of(usuarioActivo));
         when(passwordEncoder.matches(anyString(), anyString())).thenReturn(true);
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () -> usuarioService.login(authRequest));
-        assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
-        assertEquals("El usuario ha sido dado de baja", ex.getReason());
+        RecursoInactivoException ex = assertThrows(RecursoInactivoException.class, () -> usuarioService.login(authRequest));
+        assertEquals("El usuario ha sido dado de baja", ex.getMessage());
     }
 }

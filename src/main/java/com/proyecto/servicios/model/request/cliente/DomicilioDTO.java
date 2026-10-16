@@ -1,4 +1,4 @@
-package com.proyecto.servicios.model.onboarding;
+package com.proyecto.servicios.model.request.cliente;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
