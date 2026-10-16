@@ -10,6 +10,7 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 public class ProductListResponse {
+
     private boolean success;
     private String message;
     private List<ProductDTO> products;
@@ -18,9 +19,9 @@ public class ProductListResponse {
     @Setter
     @NoArgsConstructor
     public static class ProductDTO {
+
         private Integer id;
         private String name;
         private String description;
-        // Agrega aquí los campos específicos que devuelva Gestopago
     }
 }

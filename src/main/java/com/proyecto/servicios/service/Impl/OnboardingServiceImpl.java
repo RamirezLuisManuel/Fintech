@@ -2,7 +2,7 @@ package com.proyecto.servicios.service.Impl;
 
 import com.proyecto.servicios.entity.*;
 import com.proyecto.servicios.exception.OnboardingException;
-import com.proyecto.servicios.model.onboarding.ClienteRegistroDTO;
+import com.proyecto.servicios.model.request.cliente.ClienteRegistroDTO;
 import com.proyecto.servicios.repositorys.*;
 import com.proyecto.servicios.service.OnboardingService;
 import org.springframework.beans.factory.annotation.Autowired;

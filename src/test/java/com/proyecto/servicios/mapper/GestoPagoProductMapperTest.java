@@ -4,16 +4,13 @@ import com.proyecto.servicios.entity.gestopago.GestoPagoProduct;
 import com.proyecto.servicios.model.gestopago.GestoPagoProductDTO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.mapstruct.factory.Mappers;
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest
 @DisplayName("Modulo Mappers - GestoPagoProductMapper")
 class GestoPagoProductMapperTest {
 
-    @Autowired
-    private GestoPagoProductMapper mapper;
+    private final GestoPagoProductMapper mapper = Mappers.getMapper(GestoPagoProductMapper.class);
 
     @Test
     @DisplayName("TC-MAP-01: Mapear Entity a DTO correctamente")

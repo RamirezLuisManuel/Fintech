@@ -1,24 +1,33 @@
 package com.proyecto.servicios.service.Impl;
 
 import com.proyecto.servicios.entity.Usuario;
-import com.proyecto.servicios.model.AuthRequest;
-import com.proyecto.servicios.model.AuthResponse;
-import com.proyecto.servicios.model.RegisterRequest;
+import com.proyecto.servicios.exception.DatoDuplicadoException;
+import com.proyecto.servicios.exception.OperacionNoPermitidaException;
+import com.proyecto.servicios.exception.RecursoInactivoException;
+import com.proyecto.servicios.exception.RecursoNoEncontradoException;
+import com.proyecto.servicios.model.request.auth.AuthRequest;
+import com.proyecto.servicios.model.response.AuthResponse;
+import com.proyecto.servicios.model.request.auth.PasswordChangeDTO;
+import com.proyecto.servicios.model.request.auth.RegisterRequest;
+import com.proyecto.servicios.model.request.auth.UsuarioIdentificadorDTO;
+import com.proyecto.servicios.model.response.UsuarioResponseDTO;
 import com.proyecto.servicios.repositorys.UsuarioRepository;
 import com.proyecto.servicios.service.JwtService;
 import com.proyecto.servicios.service.UsuarioService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.Base64;
-import java.util.Optional;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
@@ -40,8 +49,6 @@ public class UsuarioServiceImpl implements UsuarioService {
 
     @Override
     public AuthResponse register(RegisterRequest request) {
-        // Logica dummy temporal para que compile.
-        // Se reemplazara en la Fase 4 con OnboardingService.
         return new AuthResponse("dummy_access", "dummy_refresh", "12345");
     }
 
@@ -54,7 +61,7 @@ public class UsuarioServiceImpl implements UsuarioService {
         }
 
         if (Boolean.FALSE.equals(usuario.getActivo())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "El usuario ha sido dado de baja");
+            throw new RecursoInactivoException("El usuario ha sido dado de baja");
         }
 
         redisTemplate.delete(REDIS_SESSION_PREFIX + usuario.getCliente().getCorreo());
@@ -70,13 +77,60 @@ public class UsuarioServiceImpl implements UsuarioService {
         return new AuthResponse(newAccessToken, newRefreshToken, "dummy_cuenta");
     }
 
-    private String hashPassword(String password) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] encodedhash = digest.digest(password.getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(encodedhash);
-        } catch (Exception e) {
-            throw new RuntimeException("Error al hashear password", e);
+    @Override
+    @Transactional(readOnly = true)
+    public List<UsuarioResponseDTO> listarTodos() {
+        List<Usuario> usuarios = usuarioRepository.findAll();
+        if (usuarios.isEmpty()) {
+            throw new RecursoNoEncontradoException("No hay usuarios registrados en el sistema.");
         }
+        return usuarios.stream().map(UsuarioResponseDTO::fromEntity).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<UsuarioResponseDTO> listarPaginado(Pageable pageable) {
+        return usuarioRepository.findAll(pageable).map(UsuarioResponseDTO::fromEntity);
+    }
+
+    @Override
+    @Transactional
+    public void cambiarPassword(String username, PasswordChangeDTO request) {
+        if (!request.getPasswordNueva().equals(request.getPasswordConfirmacion())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La nueva contraseÃ±a y su confirmaciÃ³n no coinciden.");
+        }
+
+        Usuario usuario = usuarioRepository.findByClienteCorreo(username)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado con correo: " + username));
+
+        if (!passwordEncoder.matches(request.getPasswordActual(), usuario.getPassword())) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "La contraseÃ±a actual es incorrecta.");
+        }
+
+        if (passwordEncoder.matches(request.getPasswordNueva(), usuario.getPassword())) {
+            throw new DatoDuplicadoException("La nueva contraseÃ±a no puede ser igual a la contraseÃ±a actual.");
+        }
+
+        usuario.setPassword(passwordEncoder.encode(request.getPasswordNueva()));
+        usuario.setUpdatedAt(LocalDateTime.now());
+        usuarioRepository.save(usuario);
+    }
+
+    @Override
+    @Transactional
+    public void bajaLogica(UsuarioIdentificadorDTO idDto) {
+        if (idDto == null || idDto.getId() == null) {
+            throw new RecursoNoEncontradoException("Se requiere el ID del usuario para la baja.");
+        }
+        Usuario usuario = usuarioRepository.findById(idDto.getId())
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado con ID: " + idDto.getId()));
+
+        if (!usuario.getActivo()) {
+            throw new DatoDuplicadoException("El usuario ya estaba dado de baja.");
+        }
+
+        usuario.setActivo(false);
+        usuario.setUpdatedAt(LocalDateTime.now());
+        usuarioRepository.save(usuario);
     }
 }

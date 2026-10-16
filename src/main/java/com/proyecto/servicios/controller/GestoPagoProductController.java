@@ -1,5 +1,6 @@
 package com.proyecto.servicios.controller;
 
+import com.proyecto.servicios.model.GenericResponse;
 import com.proyecto.servicios.model.gestopago.GestoPagoProductDTO;
 import com.proyecto.servicios.service.GestoPagoProductService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,8 +20,8 @@ public class GestoPagoProductController {
     private GestoPagoProductService gestoPagoProductService;
 
     @GetMapping(value = "/products", produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<List<GestoPagoProductDTO>> getProductList() {
+    public ResponseEntity<GenericResponse<List<GestoPagoProductDTO>>> getProductList() {
         List<GestoPagoProductDTO> response = gestoPagoProductService.getProductList();
-        return new ResponseEntity<>(response, HttpStatus.OK);
+        return new ResponseEntity<>(GenericResponse.exito(response), HttpStatus.OK);
     }
 }
