@@ -3,10 +3,12 @@ package com.proyecto.servicios.controller;
 import com.proyecto.servicios.config.CustomUserDetails;
 import com.proyecto.servicios.entity.Cliente;
 import com.proyecto.servicios.entity.Usuario;
-import com.proyecto.servicios.model.AuthRequest;
-import com.proyecto.servicios.model.AuthResponse;
-import com.proyecto.servicios.model.PasswordChangeDTO;
-import com.proyecto.servicios.repositorys.UsuarioRepository;
+import com.proyecto.servicios.model.GenericResponse;
+import com.proyecto.servicios.model.request.auth.AuthRequest;
+import com.proyecto.servicios.model.response.AuthResponse;
+import com.proyecto.servicios.model.request.auth.PasswordChangeDTO;
+import com.proyecto.servicios.model.request.auth.UsuarioIdentificadorDTO;
+import com.proyecto.servicios.model.response.UsuarioResponseDTO;
 import com.proyecto.servicios.service.UsuarioService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -17,10 +19,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.server.ResponseStatusException;
+
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -30,166 +33,83 @@ import static org.mockito.Mockito.*;
 class UsuarioControllerTest {
 
     @Mock private UsuarioService usuarioService;
-    @Mock private UsuarioRepository usuarioRepository;
-    @Mock private PasswordEncoder passwordEncoder;
     @InjectMocks private UsuarioController usuarioController;
 
-    private Usuario usuarioActivo;
-    private Usuario usuarioInactivo;
+    private UsuarioResponseDTO usuarioActivoDto;
     private CustomUserDetails principal;
 
     @BeforeEach
     void setUp() {
+        usuarioActivoDto = UsuarioResponseDTO.builder()
+                .id(1L)
+                .correo("juan@test.com")
+                .rol("CLIENTE")
+                .activo(true)
+                .clienteId(1L)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
         Cliente cliente = new Cliente();
         cliente.setId(1L);
-        cliente.setCorreo("juan@test.com");
-
-        usuarioActivo = new Usuario();
-        usuarioActivo.setId(1L);
-        usuarioActivo.setCliente(cliente);
-        usuarioActivo.setPassword("$2a$10$hashedActual");
-        usuarioActivo.setRol("CLIENTE");
-        usuarioActivo.setActivo(true);
-        usuarioActivo.setUpdatedAt(LocalDateTime.now());
-
-        usuarioInactivo = new Usuario();
-        usuarioInactivo.setId(2L);
-        usuarioInactivo.setCliente(cliente);
-        usuarioInactivo.setPassword("$2a$10$hashX");
-        usuarioInactivo.setActivo(false);
-        usuarioInactivo.setUpdatedAt(LocalDateTime.now());
-
-        principal = new CustomUserDetails(usuarioActivo);
+        Usuario usuario = new Usuario();
+        usuario.setId(1L);
+        usuario.setCliente(cliente);
+        usuario.setActivo(true);
+        principal = new CustomUserDetails(usuario);
     }
 
-    @Test @DisplayName("TC-USR-01: Login exitoso retorna 200 con token")
-    void login_exitoso_retorna200() {
+    @Test @DisplayName("TC-USR-01: Login exitoso retorna 200 con GenericResponse codigo 0")
+    void login_exitoso_retorna200ConToken() {
         AuthRequest req = new AuthRequest();
         req.setCorreo("juan@test.com");
-        req.setPassword("Segura123#");
-        AuthResponse res = new AuthResponse("access_token", "refresh_token", "1234567890");
+        req.setPassword("Password123#");
+        AuthResponse res = new AuthResponse("access_jwt_token", "refresh_jwt_token", "1234567890");
         when(usuarioService.login(any())).thenReturn(res);
-        ResponseEntity<AuthResponse> r = usuarioController.login(req);
+
+        ResponseEntity<GenericResponse<AuthResponse>> r = usuarioController.login(req);
         assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertEquals("access_token", r.getBody().getAccessToken());
+        assertNotNull(r.getBody());
+        assertEquals(0, r.getBody().getCodigo());
+        assertEquals("access_jwt_token", r.getBody().getData().getAccessToken());
     }
 
-    @Test @DisplayName("TC-USR-02: Login llama al servicio de usuario")
-    void login_llamaServicioDeUsuario() {
-        AuthRequest req = new AuthRequest();
-        req.setCorreo("juan@test.com");
-        req.setPassword("Segura123#");
-        when(usuarioService.login(any())).thenReturn(new AuthResponse("t", "r", "c"));
-        usuarioController.login(req);
-        verify(usuarioService, times(1)).login(any(AuthRequest.class));
-    }
-
-    @Test @DisplayName("TC-USR-03: Listar todos los usuarios retorna lista")
+    @Test @DisplayName("TC-USR-02: Listar todos los usuarios retorna lista en GenericResponse con codigo 0")
     void getAllUsuarios_retornaLista() {
-        when(usuarioRepository.findAll()).thenReturn(List.of(usuarioActivo, usuarioInactivo));
-        ResponseEntity<List<Usuario>> r = usuarioController.getAllUsuarios();
+        when(usuarioService.listarTodos()).thenReturn(List.of(usuarioActivoDto));
+        ResponseEntity<GenericResponse<List<UsuarioResponseDTO>>> r = usuarioController.getAllUsuarios();
         assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertEquals(2, r.getBody().size());
+        assertNotNull(r.getBody());
+        assertEquals(0, r.getBody().getCodigo());
+        assertEquals(1, r.getBody().getData().size());
+        assertEquals("juan@test.com", r.getBody().getData().get(0).getCorreo());
     }
 
-    @Test @DisplayName("TC-USR-04: Listar usuarios cuando no hay registros lanza 404")
-    void getAllUsuarios_sinRegistros_lanza404() {
-        when(usuarioRepository.findAll()).thenReturn(Collections.emptyList());
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> usuarioController.getAllUsuarios());
-        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
-    }
-
-    @Test @DisplayName("TC-USR-05: Cambiar contrasena exitosamente retorna 200")
-    void cambiarPassword_exitoso_retorna200() {
+    @Test @DisplayName("TC-USR-03: Cambiar contrasena exitosamente retorna GenericResponse con codigo 0")
+    void cambiarPassword_exitoso() {
         PasswordChangeDTO dto = new PasswordChangeDTO();
         dto.setPasswordActual("Segura123#");
         dto.setPasswordNueva("Nueva456$");
         dto.setPasswordConfirmacion("Nueva456$");
-        when(usuarioRepository.findByClienteCorreo("juan@test.com")).thenReturn(Optional.of(usuarioActivo));
-        when(passwordEncoder.matches("Segura123#", "$2a$10$hashedActual")).thenReturn(true);
-        when(passwordEncoder.matches("Nueva456$", "$2a$10$hashedActual")).thenReturn(false);
-        when(passwordEncoder.encode("Nueva456$")).thenReturn("$2a$10$hashedNueva");
-        when(usuarioRepository.save(any())).thenReturn(usuarioActivo);
-        ResponseEntity<Map<String, String>> r = usuarioController.cambiarPassword(dto, principal);
+        doNothing().when(usuarioService).cambiarPassword(any(), any());
+
+        ResponseEntity<GenericResponse<Map<String, String>>> r = usuarioController.cambiarPassword(dto, principal);
         assertEquals(HttpStatus.OK, r.getStatusCode());
-        verify(usuarioRepository).save(any(Usuario.class));
+        assertNotNull(r.getBody());
+        assertEquals(0, r.getBody().getCodigo());
+        verify(usuarioService).cambiarPassword(any(), any());
     }
 
-    @Test @DisplayName("TC-USR-06: Cambiar contrasena falla si confirmacion no coincide")
-    void cambiarPassword_confirmacionNoCoincide_lanzaBadRequest() {
-        PasswordChangeDTO dto = new PasswordChangeDTO();
-        dto.setPasswordActual("Segura123#");
-        dto.setPasswordNueva("Nueva456$");
-        dto.setPasswordConfirmacion("Diferente789$");
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> usuarioController.cambiarPassword(dto, principal));
-        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
-    }
+    @Test @DisplayName("TC-USR-04: Baja logica sin @PathVariable retorna GenericResponse con codigo 0")
+    void bajaLogicaUsuario_exitoso() {
+        UsuarioIdentificadorDTO idDto = new UsuarioIdentificadorDTO();
+        idDto.setId(1L);
+        doNothing().when(usuarioService).bajaLogica(any());
 
-    @Test @DisplayName("TC-USR-07: Cambiar contrasena falla si contrasena actual es incorrecta")
-    void cambiarPassword_actualIncorrecta_lanzaUnauthorized() {
-        PasswordChangeDTO dto = new PasswordChangeDTO();
-        dto.setPasswordActual("Incorrecta999$");
-        dto.setPasswordNueva("Nueva456$");
-        dto.setPasswordConfirmacion("Nueva456$");
-        when(usuarioRepository.findByClienteCorreo("juan@test.com")).thenReturn(Optional.of(usuarioActivo));
-        when(passwordEncoder.matches("Incorrecta999$", "$2a$10$hashedActual")).thenReturn(false);
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> usuarioController.cambiarPassword(dto, principal));
-        assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatusCode());
-    }
-
-    @Test @DisplayName("TC-USR-08: Cambiar contrasena falla si nueva es igual a la actual")
-    void cambiarPassword_nuevaIgualAActual_lanzaConflicto() {
-        PasswordChangeDTO dto = new PasswordChangeDTO();
-        dto.setPasswordActual("Segura123#");
-        dto.setPasswordNueva("Segura123#");
-        dto.setPasswordConfirmacion("Segura123#");
-        when(usuarioRepository.findByClienteCorreo("juan@test.com")).thenReturn(Optional.of(usuarioActivo));
-        when(passwordEncoder.matches("Segura123#", "$2a$10$hashedActual")).thenReturn(true);
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> usuarioController.cambiarPassword(dto, principal));
-        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-    }
-
-    @Test @DisplayName("TC-USR-09: Cambiar contrasena codifica la nueva con BCrypt")
-    void cambiarPassword_exitoso_codificaNuevaConBcrypt() {
-        PasswordChangeDTO dto = new PasswordChangeDTO();
-        dto.setPasswordActual("Segura123#");
-        dto.setPasswordNueva("Nueva456$");
-        dto.setPasswordConfirmacion("Nueva456$");
-        when(usuarioRepository.findByClienteCorreo("juan@test.com")).thenReturn(Optional.of(usuarioActivo));
-        when(passwordEncoder.matches("Segura123#", "$2a$10$hashedActual")).thenReturn(true);
-        when(passwordEncoder.matches("Nueva456$", "$2a$10$hashedActual")).thenReturn(false);
-        when(passwordEncoder.encode("Nueva456$")).thenReturn("$2a$10$hashedNueva");
-        when(usuarioRepository.save(any())).thenReturn(usuarioActivo);
-        usuarioController.cambiarPassword(dto, principal);
-        verify(passwordEncoder, times(1)).encode("Nueva456$");
-    }
-
-    @Test @DisplayName("TC-USR-10: Baja logica de usuario activo retorna 200 y lo marca inactivo")
-    void bajaLogicaUsuario_activo_retorna200YMarcaInactivo() {
-        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuarioActivo));
-        when(usuarioRepository.save(any())).thenReturn(usuarioActivo);
-        ResponseEntity<Map<String, String>> r = usuarioController.bajaLogicaUsuario(1L);
+        ResponseEntity<GenericResponse<Map<String, String>>> r = usuarioController.bajaLogicaUsuario(idDto);
         assertEquals(HttpStatus.OK, r.getStatusCode());
-        assertFalse(usuarioActivo.getActivo());
-    }
-
-    @Test @DisplayName("TC-USR-11: Baja logica de usuario ya inactivo lanza 409")
-    void bajaLogicaUsuario_yaInactivo_lanzaConflicto() {
-        when(usuarioRepository.findById(2L)).thenReturn(Optional.of(usuarioInactivo));
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> usuarioController.bajaLogicaUsuario(2L));
-        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-    }
-
-    @Test @DisplayName("TC-USR-12: Baja logica de usuario inexistente lanza 404")
-    void bajaLogicaUsuario_noExiste_lanza404() {
-        when(usuarioRepository.findById(99L)).thenReturn(Optional.empty());
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> usuarioController.bajaLogicaUsuario(99L));
-        assertEquals(HttpStatus.NOT_FOUND, ex.getStatusCode());
+        assertNotNull(r.getBody());
+        assertEquals(0, r.getBody().getCodigo());
+        verify(usuarioService).bajaLogica(any());
     }
 }

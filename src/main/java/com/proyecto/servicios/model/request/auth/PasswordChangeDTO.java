@@ -1,4 +1,4 @@
-package com.proyecto.servicios.model;
+package com.proyecto.servicios.model.request.auth;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

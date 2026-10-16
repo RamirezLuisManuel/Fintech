@@ -41,14 +41,14 @@ public class SecurityConfig {
                 .authenticationEntryPoint((request, response, authException) -> {
                     response.setContentType("application/json");
                     response.setCharacterEncoding("UTF-8");
-                    response.setStatus(403);
-                    response.getWriter().write("{\"codigo\": 403, \"mensaje\": \"Acceso denegado: Token invalido, expirado o no proporcionado.\"}");
+                    response.setStatus(401);
+                    response.getWriter().write("{\"codigo\": 2, \"mensaje\": \"Acceso no autenticado: Token invalido, expirado o no proporcionado.\"}");
                 })
                 .accessDeniedHandler((request, response, accessDeniedException) -> {
                     response.setContentType("application/json");
                     response.setCharacterEncoding("UTF-8");
                     response.setStatus(403);
-                    response.getWriter().write("{\"codigo\": 403, \"mensaje\": \"Acceso denegado: No tienes permisos para acceder a este recurso o no te pertenece.\"}");
+                    response.getWriter().write("{\"codigo\": 2, \"mensaje\": \"Acceso denegado: No tienes permisos para acceder a este recurso o no te pertenece.\"}");
                 })
             )
             .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
