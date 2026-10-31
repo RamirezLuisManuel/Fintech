@@ -1,7 +1,8 @@
 package com.proyecto.servicios.service;
 
 import com.proyecto.servicios.model.request.cliente.ClienteRegistroDTO;
+import com.proyecto.servicios.model.response.RegistroClienteResponseDTO;
 
 public interface OnboardingService {
-    String registrarCliente(ClienteRegistroDTO request);
+    RegistroClienteResponseDTO registrarCliente(ClienteRegistroDTO request);
 }

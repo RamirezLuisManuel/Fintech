@@ -17,6 +17,8 @@ public class CuentaResponseDTO {
     private Long id;
     private String numeroCuenta;
     private BigDecimal saldo;
+    private BigDecimal saldoRetenido;
+    private BigDecimal saldoDisponible;
     private Boolean activo;
     private Long clienteId;
     private String clienteNombre;
@@ -29,6 +31,8 @@ public class CuentaResponseDTO {
                 .id(c.getId())
                 .numeroCuenta(c.getNumeroCuenta())
                 .saldo(c.getSaldo())
+                .saldoRetenido(c.getSaldoRetenido())
+                .saldoDisponible(c.getSaldo().subtract(c.getSaldoRetenido()))
                 .activo(c.getActivo())
                 .clienteId(c.getCliente() != null ? c.getCliente().getId() : null)
                 .clienteNombre(c.getCliente() != null ? c.getCliente().getNombre() + " " + c.getCliente().getApellidoPaterno() : null)

@@ -34,7 +34,7 @@ public class SecurityConfig {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/v1/clientes").permitAll() // POST /clientes es libre para el onboarding
+                .requestMatchers("/api/v1/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/v1/clientes", "/api/v1/gestopago/products/**").permitAll() // POST /clientes y catalogo de productos libre
                 .anyRequest().authenticated()
             )
             .exceptionHandling(exc -> exc

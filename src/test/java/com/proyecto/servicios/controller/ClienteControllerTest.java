@@ -12,6 +12,7 @@ import com.proyecto.servicios.model.request.cliente.ClienteIdentificadorDTO;
 import com.proyecto.servicios.model.request.cliente.ClienteRegistroDTO;
 import com.proyecto.servicios.model.response.ClienteResponseDTO;
 import com.proyecto.servicios.model.response.CuentaResponseDTO;
+import com.proyecto.servicios.model.response.RegistroClienteResponseDTO;
 import com.proyecto.servicios.service.ClienteService;
 import com.proyecto.servicios.service.OnboardingService;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,17 +73,20 @@ class ClienteControllerTest {
 
     @Test @DisplayName("TC-CLI-01: Registro exitoso retorna 201 con GenericResponse codigo 0")
     void registrarCliente_exitoso_retorna201() {
-        when(onboardingService.registrarCliente(any())).thenReturn("1234567890");
+        when(onboardingService.registrarCliente(any())).thenReturn(
+                new RegistroClienteResponseDTO("1234567890", "1234", "aviso"));
         ResponseEntity<GenericResponse<Map<String, String>>> response = clienteController.registrarCliente(registroDTO);
         assertEquals(HttpStatus.CREATED, response.getStatusCode());
         assertNotNull(response.getBody());
         assertEquals(0, response.getBody().getCodigo());
         assertEquals("1234567890", response.getBody().getData().get("numero_cuenta"));
+        assertEquals("1234", response.getBody().getData().get("pin"));
     }
 
     @Test @DisplayName("TC-CLI-02: Registro llama al servicio de onboarding exactamente una vez")
     void registrarCliente_llamaServicioOnboarding() {
-        when(onboardingService.registrarCliente(any())).thenReturn("0987654321");
+        when(onboardingService.registrarCliente(any())).thenReturn(
+                new RegistroClienteResponseDTO("0987654321", "1234", "aviso"));
         clienteController.registrarCliente(registroDTO);
         verify(onboardingService, times(1)).registrarCliente(any(ClienteRegistroDTO.class));
     }

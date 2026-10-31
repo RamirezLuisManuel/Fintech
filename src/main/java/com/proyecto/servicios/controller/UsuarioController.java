@@ -5,6 +5,7 @@ import com.proyecto.servicios.model.GenericResponse;
 import com.proyecto.servicios.model.request.auth.AuthRequest;
 import com.proyecto.servicios.model.response.AuthResponse;
 import com.proyecto.servicios.model.request.auth.PasswordChangeDTO;
+import com.proyecto.servicios.model.request.auth.PinChangeDTO;
 import com.proyecto.servicios.model.request.auth.RegisterRequest;
 import com.proyecto.servicios.model.request.auth.UsuarioIdentificadorDTO;
 import com.proyecto.servicios.model.response.UsuarioResponseDTO;
@@ -59,5 +60,13 @@ public class UsuarioController {
             @Valid @RequestBody UsuarioIdentificadorDTO idDto) {
         usuarioService.bajaLogica(idDto);
         return ResponseEntity.ok(GenericResponse.exito("Usuario dado de baja correctamente.", Map.of("mensaje", "Usuario dado de baja correctamente.")));
+    }
+    @PatchMapping("/usuarios/pin")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<GenericResponse<Map<String, String>>> actualizarPin(
+            @Valid @RequestBody PinChangeDTO request,
+            @AuthenticationPrincipal CustomUserDetails principal) {
+        usuarioService.actualizarPin(principal.getUsername(), request);
+        return ResponseEntity.ok(GenericResponse.exito("PIN de seguridad actualizado exitosamente.", Map.of("mensaje", "PIN de seguridad actualizado exitosamente.")));
     }
 }

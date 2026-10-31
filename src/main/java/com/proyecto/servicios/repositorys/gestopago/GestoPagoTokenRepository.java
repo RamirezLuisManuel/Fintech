@@ -10,4 +10,7 @@ import java.util.Optional;
 public interface GestoPagoTokenRepository extends JpaRepository<GestoPagoToken, Integer> {
 
     Optional<GestoPagoToken> findByIdDistribuidorAndCodigoDispositivo(Integer idDistribuidor, String codigoDispositivo);
+
+    Optional<GestoPagoToken> findByIdDistribuidorAndCodigoDispositivoAndActivoTrue(
+            Integer idDistribuidor, String codigoDispositivo);
 }

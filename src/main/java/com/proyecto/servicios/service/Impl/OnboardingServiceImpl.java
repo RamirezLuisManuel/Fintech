@@ -3,6 +3,7 @@ package com.proyecto.servicios.service.Impl;
 import com.proyecto.servicios.entity.*;
 import com.proyecto.servicios.exception.OnboardingException;
 import com.proyecto.servicios.model.request.cliente.ClienteRegistroDTO;
+import com.proyecto.servicios.model.response.RegistroClienteResponseDTO;
 import com.proyecto.servicios.repositorys.*;
 import com.proyecto.servicios.service.OnboardingService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.Period;
 import java.util.Base64;
@@ -34,7 +36,7 @@ public class OnboardingServiceImpl implements OnboardingService {
 
     @Override
     @Transactional
-    public String registrarCliente(ClienteRegistroDTO request) {
+    public RegistroClienteResponseDTO registrarCliente(ClienteRegistroDTO request) {
         if (Period.between(request.getFechaNacimiento(), LocalDate.now()).getYears() < 18) {
             throw new OnboardingException(HttpStatus.BAD_REQUEST, "El cliente debe ser mayor de edad.");
         }
@@ -88,14 +90,26 @@ public class OnboardingServiceImpl implements OnboardingService {
         cuenta.setActivo(true);
         cuentaRepository.save(cuenta);
 
+        String pin = generarPinSeguro();
+
         Usuario usuario = new Usuario();
         usuario.setCliente(cliente);
         usuario.setPassword(passwordEncoder.encode(request.getPassword()));
+        usuario.setPin(passwordEncoder.encode(pin));
         usuario.setRol("CLIENTE");
         usuario.setFaceIdEnabled(false);
         usuarioRepository.save(usuario);
 
-        return cuenta.getNumeroCuenta();
+        return RegistroClienteResponseDTO.builder()
+                .numeroCuenta(cuenta.getNumeroCuenta())
+                .pin(pin)
+                .aviso("Guarde este PIN en un lugar seguro. Por motivos de seguridad, es la única vez que se mostrará.")
+                .build();
+    }
+
+    private String generarPinSeguro() {
+        SecureRandom random = new SecureRandom();
+        return String.format("%04d", random.nextInt(10000));
     }
 
     private String generarNumeroCuentaUnico() {
@@ -121,4 +135,3 @@ public class OnboardingServiceImpl implements OnboardingService {
         }
     }
 }
-
