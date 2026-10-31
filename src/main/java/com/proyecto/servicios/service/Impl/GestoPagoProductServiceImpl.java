@@ -21,6 +21,7 @@ import org.springframework.http.HttpStatus;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.time.Duration;
 
 @Service
 @Slf4j
@@ -42,7 +43,7 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
     @Override
     public List<GestoPagoProductDTO> getProductList() {
         List<GestoPagoProduct> products = fetchFromRedis();
-        if (products != null) {
+        if (products != null && products.size() >= 50) {
             return productMapper.toDtoList(products);
         }
 
@@ -51,6 +52,20 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
             return productMapper.toDtoList(products);
         }
 
+        try {
+            return productMapper.toDtoList(fetchFromGestopagoAndSave());
+        } catch (Exception e) {
+            log.warn("Fallo sincronizacion con GestoPago, usando catalogo local si existe: {}", e.getMessage());
+            List<GestoPagoProduct> local = productRepository.findAll();
+            if (!local.isEmpty()) {
+                return productMapper.toDtoList(local);
+            }
+            throw e;
+        }
+    }
+
+    @Override
+    public List<GestoPagoProductDTO> sincronizarProductos() {
         return productMapper.toDtoList(fetchFromGestopagoAndSave());
     }
 
@@ -61,7 +76,7 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
                 List<GestoPagoProduct> cached = jsonMapper.convertValue(obj, new com.fasterxml.jackson.core.type.TypeReference<List<GestoPagoProduct>>() {
                 });
                 if (!cached.isEmpty()) {
-                    log.info("Productos obtenidos exitosamente desde Redis Cache");
+                    log.info("Productos obtenidos exitosamente desde Redis Cache ({} productos)", cached.size());
                     return cached;
                 }
             }
@@ -74,10 +89,13 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
     private List<GestoPagoProduct> fetchFromPostgres() {
         try {
             List<GestoPagoProduct> dbProducts = productRepository.findAll();
-            if (dbProducts != null && !dbProducts.isEmpty()) {
-                log.info("Productos obtenidos exitosamente desde Postgres");
-                redisTemplate.opsForValue().set(Constants.REDIS_KEY_GESTOPAGO_PRODUCTS, dbProducts);
+            if (dbProducts != null && dbProducts.size() >= 50) {
+                log.info("Productos obtenidos exitosamente desde Postgres ({} productos)", dbProducts.size());
+                redisTemplate.opsForValue().set(Constants.REDIS_KEY_GESTOPAGO_PRODUCTS, dbProducts, Duration.ofHours(25));
                 return dbProducts;
+            }
+            if (dbProducts != null && !dbProducts.isEmpty()) {
+                log.warn("Postgres contiene solo {} productos; intentando sincronizar catalogo completo desde GestoPago...", dbProducts.size());
             }
         } catch (Exception e) {
             log.error("Fallo al consultar Postgres: {}", e.getMessage());
@@ -86,20 +104,20 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
     }
 
     private List<GestoPagoProduct> fetchFromGestopagoAndSave() {
-        log.warn("Redis y Postgres fallaron o estan vacios. Consultando directo a Gestopago...");
+        log.warn("Consultando catalogo completo directamente a GestoPago...");
         try {
             Response feignResponse = gestoPagoServiceClient.getProductList();
             String rawXml = IOUtils.toString(feignResponse.body().asInputStream(), StandardCharsets.UTF_8);
 
             List<GestoPagoProduct> freshProducts = xmlParser.parseXml(rawXml);
             if (freshProducts == null || freshProducts.isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "2: Gestopago funciona pero devolvio XML invalido");
+                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "2: Gestopago devolvio una lista vacia o XML invalido");
             }
 
             productRepository.saveAll(freshProducts);
-            redisTemplate.opsForValue().set(Constants.REDIS_KEY_GESTOPAGO_PRODUCTS, freshProducts);
+            redisTemplate.opsForValue().set(Constants.REDIS_KEY_GESTOPAGO_PRODUCTS, freshProducts, Duration.ofHours(25));
 
-            log.info("Productos obtenidos directamente de Gestopago y guardados (Fallback completado)");
+            log.info("Catalogo de GestoPago guardado exitosamente en Postgres y Redis ({} productos)", freshProducts.size());
             return freshProducts;
 
         } catch (RetryableException e) {
@@ -111,7 +129,7 @@ public class GestoPagoProductServiceImpl implements GestoPagoProductService {
                 throw (ResponseStatusException) e;
             }
             log.error("Error al contactar Gestopago", e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error inesperado obteniendo productos");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error inesperado obteniendo productos: " + e.getMessage());
         }
     }
 }

@@ -125,6 +125,63 @@ Todas las operaciones subsecuentes requieren el envío del Bearer Token en los h
 
 *Adicionalmente se cuenta con endpoints del módulo de productos externos (GestoPago) para simulaciones de pagos.*
 
+## Pagos con GestoPago y doble factor
+
+El pago se realiza en dos pasos protegidos con JWT. El backend deriva `idServicio` y `tipoFront`
+desde el catálogo local; el cliente no debe enviarlos.
+
+### 1. Solicitar código de autorización
+
+```http
+POST /api/v1/gestopago/transactions/challenge
+Authorization: Bearer <jwt>
+Idempotency-Key: <identificador-unico-del-cliente>
+Content-Type: application/json
+```
+
+```json
+{
+  "numeroCuenta": "1234567890",
+  "monto": 100.00,
+  "idProducto": 200,
+  "telefono": "4181234567",
+  "referencia": null
+}
+```
+
+La respuesta contiene `operationId`, correo enmascarado y vencimiento del código. El OTP tiene seis
+dígitos, expira en cinco minutos, permite cinco intentos y sólo se almacena su hash temporalmente en Redis.
+
+### 2. Confirmar y enviar la transacción
+
+```http
+POST /api/v1/gestopago/transactions/{operationId}/confirm
+Authorization: Bearer <jwt>
+Content-Type: application/json
+```
+
+```json
+{
+  "codigo": "583104"
+}
+```
+
+Al confirmar se vuelve a validar usuario, cliente, cuenta, propiedad de la cuenta y saldo. El importe se
+retiene atómicamente antes de llamar a `sendTx`. Un éxito captura la retención; un rechazo explícito la
+libera. Si no existe respuesta concluyente, la operación queda `UNKNOWN` y el saldo permanece retenido.
+Después de 62 segundos el conciliador ejecuta `confirmTx` con el mismo payload. La consulta de estado es:
+
+```http
+GET /api/v1/gestopago/transactions/{operationId}
+Authorization: Bearer <jwt>
+```
+
+Estados posibles: `OTP_PENDING`, `PROCESSING`, `UNKNOWN`, `SUCCEEDED`, `FAILED` y `MANUAL_REVIEW`.
+
+Para enviar el correo se deben configurar `MAIL_USERNAME` y `MAIL_PASSWORD`; opcionalmente `MAIL_HOST`
+y `MAIL_PORT`. La unidad comercial está configurada como `083` y el saldo del usuario se descuenta sin
+comisión adicional.
+
 ---
 
 ## Pruebas Unitarias (Testing)

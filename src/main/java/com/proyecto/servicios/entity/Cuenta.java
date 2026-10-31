@@ -29,6 +29,9 @@ public class Cuenta {
     @Column(nullable = false, precision = 24, scale = 2)
     private BigDecimal saldo = BigDecimal.ZERO;
 
+    @Column(name = "saldo_retenido", nullable = false, precision = 24, scale = 2)
+    private BigDecimal saldoRetenido = BigDecimal.ZERO;
+
     @Column(nullable = false)
     private Boolean activo = true;
 

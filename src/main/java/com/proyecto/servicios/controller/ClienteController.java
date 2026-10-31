@@ -8,6 +8,7 @@ import com.proyecto.servicios.model.request.cliente.ClienteIdentificadorDTO;
 import com.proyecto.servicios.model.request.cliente.ClienteRegistroDTO;
 import com.proyecto.servicios.model.response.ClienteResponseDTO;
 import com.proyecto.servicios.model.response.CuentaResponseDTO;
+import com.proyecto.servicios.model.response.RegistroClienteResponseDTO;
 import com.proyecto.servicios.service.ClienteService;
 import com.proyecto.servicios.service.OnboardingService;
 import jakarta.validation.Valid;
@@ -32,8 +33,13 @@ public class ClienteController {
 
     @PostMapping
     public ResponseEntity<GenericResponse<Map<String, String>>> registrarCliente(@Valid @RequestBody ClienteRegistroDTO request) {
-        String numCuenta = onboardingService.registrarCliente(request);
-        Map<String, String> data = Map.of("mensaje", "Cliente registrado exitosamente", "numero_cuenta", numCuenta);
+        RegistroClienteResponseDTO resultado = onboardingService.registrarCliente(request);
+        Map<String, String> data = Map.of(
+                "mensaje", "Cliente registrado exitosamente",
+                "numero_cuenta", resultado.getNumeroCuenta(),
+                "pin", resultado.getPin(),
+                "aviso_seguridad", resultado.getAviso()
+        );
         return new ResponseEntity<>(GenericResponse.exito("Cliente registrado exitosamente", data), HttpStatus.CREATED);
     }
 

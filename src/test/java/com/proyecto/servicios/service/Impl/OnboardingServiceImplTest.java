@@ -6,6 +6,7 @@ import com.proyecto.servicios.entity.Usuario;
 import com.proyecto.servicios.exception.OnboardingException;
 import com.proyecto.servicios.model.request.cliente.ClienteRegistroDTO;
 import com.proyecto.servicios.model.request.cliente.DomicilioDTO;
+import com.proyecto.servicios.model.response.RegistroClienteResponseDTO;
 import com.proyecto.servicios.repositorys.ClienteRepository;
 import com.proyecto.servicios.repositorys.CuentaRepository;
 import com.proyecto.servicios.repositorys.UsuarioRepository;
@@ -83,9 +84,13 @@ class OnboardingServiceImplTest {
         when(cuentaRepository.save(any(Cuenta.class))).thenAnswer(i -> i.getArgument(0));
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(i -> i.getArgument(0));
         when(passwordEncoder.encode(anyString())).thenReturn("hash");
-        String numeroCuenta = onboardingService.registrarCliente(requestValido);
-        assertNotNull(numeroCuenta);
-        assertEquals(10, numeroCuenta.length());
+        RegistroClienteResponseDTO resultado = onboardingService.registrarCliente(requestValido);
+        assertNotNull(resultado);
+        assertNotNull(resultado.getNumeroCuenta());
+        assertEquals(10, resultado.getNumeroCuenta().length());
+        assertNotNull(resultado.getPin());
+        assertEquals(4, resultado.getPin().length());
+        assertNotNull(resultado.getAviso());
         verify(clienteRepository).save(any(Cliente.class));
         verify(cuentaRepository).save(any(Cuenta.class));
         verify(usuarioRepository).save(any(Usuario.class));
@@ -121,6 +126,7 @@ class OnboardingServiceImplTest {
         when(passwordEncoder.encode(anyString())).thenReturn("hash");
         onboardingService.registrarCliente(requestValido);
         verify(passwordEncoder, times(1)).encode("Segura123#");
+        verify(passwordEncoder, times(2)).encode(anyString());
     }
 
     @Test
@@ -199,8 +205,9 @@ class OnboardingServiceImplTest {
         when(cuentaRepository.save(any(Cuenta.class))).thenAnswer(i -> i.getArgument(0));
         when(usuarioRepository.save(any(Usuario.class))).thenAnswer(i -> i.getArgument(0));
         when(passwordEncoder.encode(anyString())).thenReturn("hash");
-        String numeroCuenta = onboardingService.registrarCliente(requestValido);
-        assertNotNull(numeroCuenta);
+        RegistroClienteResponseDTO resultado = onboardingService.registrarCliente(requestValido);
+        assertNotNull(resultado);
+        assertNotNull(resultado.getNumeroCuenta());
         verify(cuentaRepository, atLeast(2)).existsByNumeroCuenta(anyString());
     }
 
@@ -238,9 +245,28 @@ class OnboardingServiceImplTest {
             Usuario u = inv.getArgument(0);
             assertEquals("CLIENTE", u.getRol());
             assertFalse(u.getFaceIdEnabled());
+            assertEquals("hash", u.getPin());
             return u;
         });
         onboardingService.registrarCliente(requestValido);
         verify(usuarioRepository, times(1)).save(any(Usuario.class));
+    }
+
+    @Test
+    @DisplayName("TC-ONB-13: Usuario creado con PIN de 4 digitos codificado con BCrypt")
+    void registrarCliente_usuarioCreado_conPinCodificado() {
+        when(clienteRepository.existsByCurp(anyString())).thenReturn(false);
+        when(clienteRepository.existsByRfc(anyString())).thenReturn(false);
+        when(clienteRepository.existsByCorreo(anyString())).thenReturn(false);
+        when(clienteRepository.save(any(Cliente.class))).thenAnswer(i -> i.getArgument(0));
+        when(cuentaRepository.existsByNumeroCuenta(anyString())).thenReturn(false);
+        when(cuentaRepository.save(any(Cuenta.class))).thenAnswer(i -> i.getArgument(0));
+        when(passwordEncoder.encode(anyString())).thenReturn("hashedPin");
+        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(i -> i.getArgument(0));
+
+        RegistroClienteResponseDTO resultado = onboardingService.registrarCliente(requestValido);
+        assertNotNull(resultado.getPin());
+        assertEquals(4, resultado.getPin().length());
+        assertTrue(resultado.getPin().matches("\\d{4}"));
     }
 }

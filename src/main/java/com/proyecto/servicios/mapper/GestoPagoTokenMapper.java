@@ -17,6 +17,7 @@ public interface GestoPagoTokenMapper {
     @Mapping(target = "activo", ignore = true)
     @Mapping(target = "fechaCreacion", ignore = true)
     @Mapping(target = "fechaActualizacion", ignore = true)
+    @Mapping(target = "expiresAt", ignore = true)
     GestoPagoToken toEntity(GestoPagoAuthResponse response);
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
@@ -26,5 +27,6 @@ public interface GestoPagoTokenMapper {
     @Mapping(target = "activo", ignore = true)
     @Mapping(target = "fechaCreacion", ignore = true)
     @Mapping(target = "fechaActualizacion", ignore = true)
+    @Mapping(target = "expiresAt", ignore = true)
     void updateEntity(GestoPagoAuthResponse response, @MappingTarget GestoPagoToken entity);
 }

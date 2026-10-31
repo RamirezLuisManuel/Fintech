@@ -69,6 +69,15 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
+    public ResponseEntity<GenericResponse<Object>> handleConstraintViolation(
+            jakarta.validation.ConstraintViolationException ex) {
+        return new ResponseEntity<>(
+                GenericResponse.errorValidacion("Datos no validos: " + ex.getMessage()),
+                HttpStatus.BAD_REQUEST
+        );
+    }
+
     @ExceptionHandler(FeignException.class)
     public ResponseEntity<GenericResponse<Object>> handleFeignException(FeignException ex) {
         log.error("Error de integracion (FeignException) al llamar al servicio externo: status={}, body={}", ex.status(), ex.contentUTF8());
@@ -114,6 +123,24 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(
             GenericResponse.errorNegocio("Acceso denegado: No tienes permisos para acceder a este recurso o no te pertenece."),
             HttpStatus.FORBIDDEN
+        );
+    }
+
+    @ExceptionHandler(org.springframework.web.servlet.resource.NoResourceFoundException.class)
+    public ResponseEntity<GenericResponse<Object>> handleNoResourceFound(org.springframework.web.servlet.resource.NoResourceFoundException ex) {
+        log.warn("Ruta no encontrada (404): {}", ex.getResourcePath());
+        return new ResponseEntity<>(
+            GenericResponse.errorNegocio("Ruta o endpoint no encontrado: " + ex.getResourcePath()),
+            HttpStatus.NOT_FOUND
+        );
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<GenericResponse<Object>> handleMethodNotSupported(org.springframework.web.HttpRequestMethodNotSupportedException ex) {
+        log.warn("Metodo HTTP no soportado: {}", ex.getMessage());
+        return new ResponseEntity<>(
+            GenericResponse.errorNegocio(ex.getMessage()),
+            HttpStatus.METHOD_NOT_ALLOWED
         );
     }
 

@@ -31,6 +31,9 @@ public class GestoPagoToken {
     @Column(name = "expires_in")
     private Long expiresIn;
 
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
     @Column(name = "fecha_creacion", nullable = false, updatable = false)
     private LocalDateTime fechaCreacion;
 

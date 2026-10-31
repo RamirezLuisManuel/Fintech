@@ -5,4 +5,5 @@ import java.util.List;
 
 public interface GestoPagoProductService {
     List<GestoPagoProductDTO> getProductList();
+    List<GestoPagoProductDTO> sincronizarProductos();
 }

@@ -23,7 +23,12 @@ public class Usuario {
     private Cliente cliente;
 
     @Column(nullable = false, length = 255)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private String password;
+
+    @Column(length = 255)
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private String pin;
 
     @Column(nullable = false, length = 20)
     private String rol = "CLIENTE";

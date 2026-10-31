@@ -8,6 +8,7 @@ import com.proyecto.servicios.exception.RecursoNoEncontradoException;
 import com.proyecto.servicios.model.request.auth.AuthRequest;
 import com.proyecto.servicios.model.response.AuthResponse;
 import com.proyecto.servicios.model.request.auth.PasswordChangeDTO;
+import com.proyecto.servicios.model.request.auth.PinChangeDTO;
 import com.proyecto.servicios.model.request.auth.RegisterRequest;
 import com.proyecto.servicios.model.request.auth.UsuarioIdentificadorDTO;
 import com.proyecto.servicios.model.response.UsuarioResponseDTO;
@@ -97,18 +98,18 @@ public class UsuarioServiceImpl implements UsuarioService {
     @Transactional
     public void cambiarPassword(String username, PasswordChangeDTO request) {
         if (!request.getPasswordNueva().equals(request.getPasswordConfirmacion())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La nueva contraseÃ±a y su confirmaciÃ³n no coinciden.");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La nueva contraseÃƒÂ±a y su confirmaciÃƒÂ³n no coinciden.");
         }
 
         Usuario usuario = usuarioRepository.findByClienteCorreo(username)
                 .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado con correo: " + username));
 
         if (!passwordEncoder.matches(request.getPasswordActual(), usuario.getPassword())) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "La contraseÃ±a actual es incorrecta.");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "La contraseÃƒÂ±a actual es incorrecta.");
         }
 
         if (passwordEncoder.matches(request.getPasswordNueva(), usuario.getPassword())) {
-            throw new DatoDuplicadoException("La nueva contraseÃ±a no puede ser igual a la contraseÃ±a actual.");
+            throw new DatoDuplicadoException("La nueva contraseÃƒÂ±a no puede ser igual a la contraseÃƒÂ±a actual.");
         }
 
         usuario.setPassword(passwordEncoder.encode(request.getPasswordNueva()));
@@ -131,6 +132,17 @@ public class UsuarioServiceImpl implements UsuarioService {
 
         usuario.setActivo(false);
         usuario.setUpdatedAt(LocalDateTime.now());
+        usuarioRepository.save(usuario);
+    }
+    @Override
+    @Transactional
+    public void actualizarPin(String username, PinChangeDTO request) {
+        Usuario usuario = usuarioRepository.findByClienteCorreo(username)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Usuario no encontrado con correo: " + username));
+        if (Boolean.FALSE.equals(usuario.getActivo())) {
+            throw new RecursoInactivoException("El usuario se encuentra inactivo");
+        }
+        usuario.setPin(passwordEncoder.encode(request.getPin()));
         usuarioRepository.save(usuario);
     }
 }

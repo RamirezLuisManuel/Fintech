@@ -15,9 +15,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.time.Duration;
 
 @Service
-
 @Slf4j
 public class GestoPagoSyncServiceImpl {
 
@@ -32,26 +32,40 @@ public class GestoPagoSyncServiceImpl {
 
     @jakarta.annotation.PostConstruct
     public void initSync() {
-        log.info("Ejecutando sincronizacion inicial al arrancar la aplicacion...");
-        syncProducts();
+        long localCount = productRepository.count();
+        if (localCount == 0) {
+            log.info("Catalogo local vacio (0 productos); ejecutando sincronizacion inicial de GestoPago...");
+            syncProducts();
+        } else {
+            log.info("Catalogo local existente ({} productos); calentando cache Redis...", localCount);
+            redisTemplate.opsForValue().set(Constants.REDIS_KEY_GESTOPAGO_PRODUCTS,
+                    productRepository.findAll(), Duration.ofHours(25));
+        }
     }
 
-    @Scheduled(cron = "0 0 2 * * ?")
+    @Scheduled(cron = "${gestopago.sync.cron:0 0 0 * * ?}")
     public void syncProducts() {
-        log.info("Iniciando sincronizacion nocturna de productos Gestopago...");
+        log.info("Iniciando sincronizacion nocturna (media noche) de productos Gestopago...");
         try {
             Response feignResponse = gestoPagoServiceClient.getProductList();
             String rawXml = IOUtils.toString(feignResponse.body().asInputStream(), StandardCharsets.UTF_8);
 
             List<GestoPagoProduct> productos = xmlParser.parseXml(rawXml);
-            long oldSize = productRepository.count();
+            if (productos == null || productos.isEmpty()) {
+                log.warn("Sincronizacion ignorada: GestoPago devolvio un catalogo vacio.");
+                return;
+            }
 
-            if (productos != null && productos.size() > oldSize) {
+            long localCount = productRepository.count();
+            if (productos.size() > localCount) {
                 saveToDatabases(productos);
-                log.info("Sincronizacion de GestoPago finalizada. Productos cacheados: {}", productos.size());
+                log.info("Sincronizacion exitosa: catalogo remoto ({}) es mayor al local ({}). Guardado en BD y Redis.",
+                        productos.size(), localCount);
             } else {
-                log.warn("Sincronizacion ignorada: El nuevo tamano ({}) no es mayor al anterior ({}).",
-                        (productos != null ? productos.size() : 0), oldSize);
+                log.info("Sincronizacion ignorada: catalogo remoto ({}) es igual o menor al local ({}). No se sobreescribe en BD.",
+                        productos.size(), localCount);
+                redisTemplate.opsForValue().set(Constants.REDIS_KEY_GESTOPAGO_PRODUCTS,
+                        productRepository.findAll(), Duration.ofHours(25));
             }
         } catch (Exception e) {
             log.error("Fallo la sincronizacion nocturna de productos GestoPago: {}", e.getMessage(), e);
@@ -60,6 +74,6 @@ public class GestoPagoSyncServiceImpl {
 
     private void saveToDatabases(List<GestoPagoProduct> productos) {
         productRepository.saveAll(productos);
-        redisTemplate.opsForValue().set(Constants.REDIS_KEY_GESTOPAGO_PRODUCTS, productos);
+        redisTemplate.opsForValue().set(Constants.REDIS_KEY_GESTOPAGO_PRODUCTS, productos, Duration.ofHours(25));
     }
 }
