@@ -1,0 +1,80 @@
+-- V9: Comunidades y colonias de Dolores Hidalgo con sus códigos postales oficiales (SEPOMEX)
+-- y asegurar 'Estudiante' en el catálogo de ocupaciones
+
+INSERT INTO cat_ocupaciones (nombre) VALUES ('Estudiante')
+ON CONFLICT (nombre) DO NOTHING;
+
+INSERT INTO cat_colonias (nombre, codigo_postal, municipio_id)
+SELECT c.nombre, c.cp, m.id FROM cat_municipios m
+CROSS JOIN (VALUES
+    -- Colonias urbanas de Dolores Hidalgo
+    ('Centro', '37800'),
+    ('Lindavista', '37800'),
+    ('San Cristóbal', '37800'),
+    ('Guanajuato', '37800'),
+    ('Mariano Balleza', '37800'),
+    ('Todos Santos', '37800'),
+    ('Fraccionamiento Independencia', '37800'),
+    ('15 de Septiembre', '37804'),
+    ('Padre Hidalgo', '37805'),
+    ('La Estación', '37806'),
+    ('San Juan', '37806'),
+    ('Loma Bonita', '37807'),
+    ('Insurgentes', '37807'),
+    ('Cuna de la Independencia', '37804'),
+    -- Comunidades de Dolores Hidalgo
+    ('El Saucillo', '37817'),
+    ('Remátalo', '37817'),
+    ('Don Pedro', '37815'),
+    ('Xoconoxtle el Grande', '37810'),
+    ('Xoconoxtle el Chico', '37810'),
+    ('Río Laja', '37812'),
+    ('El Llanito', '37812'),
+    ('La Erre', '37810'),
+    ('Adjuntas del Río', '37814'),
+    ('Adjuntas del Monte', '37814'),
+    ('La Ventilla', '37814'),
+    ('San Gabriel', '37813'),
+    ('El Gallinero', '37813'),
+    ('San Antonio del Gallinero', '37813'),
+    ('San Antón de las Minas', '37817'),
+    ('San Marcos de Abajo', '37815'),
+    ('San Marcos de Arriba', '37815'),
+    ('San Martín de Terreros', '37816'),
+    ('Los Terreros', '37816'),
+    ('Peñuelitas', '37816'),
+    ('Santa Bárbara', '37815'),
+    ('Santa Catarina', '37815'),
+    ('Los Dolores', '37810'),
+    ('Jama', '37817'),
+    ('Trancas', '37814'),
+    ('Tequisquiapan', '37812'),
+    ('Cerrito de Esteban', '37815'),
+    ('Cerrito de Guadalupe', '37810'),
+    ('El Capulín', '37815'),
+    ('El Ramillete', '37816'),
+    ('El Mosco', '37814'),
+    ('La Cruz del Padre Razo', '37815'),
+    ('La California', '37815'),
+    ('La Grulla', '37816'),
+    ('La Sabana', '37814'),
+    ('La Venta', '37814'),
+    ('Montelongo', '37813'),
+    ('Noria Nueva', '37814'),
+    ('Ojo Zarco', '37815'),
+    ('Palacio de Abajo', '37813'),
+    ('Palacio de Arriba', '37813'),
+    ('Rancho Nuevo de la Cruz', '37815'),
+    ('San Isidro de la Estacada', '37814'),
+    ('San José de Badillo', '37816'),
+    ('San José de la Palma', '37815'),
+    ('San Lucas', '37814'),
+    ('San Simeón', '37817'),
+    ('Santiaguillo', '37815'),
+    ('Soledad Nueva', '37812'),
+    ('Tierra Blanca', '37815'),
+    ('Tierra Colorada', '37817'),
+    ('Zamarripa', '37817')
+) AS c(nombre, cp)
+WHERE m.nombre = 'Dolores Hidalgo'
+ON CONFLICT (nombre, municipio_id) DO UPDATE SET codigo_postal = EXCLUDED.codigo_postal;

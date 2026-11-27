@@ -48,6 +48,24 @@ class GestoPagoTxXmlParserTest {
     }
 
     @Test
+    void parse_normalizesIpValidation55AndRawMapDumpToCode05() {
+        String xml = """
+                <RESPONSE>
+                  <MENSAJE>
+                    <CODIGO>55</CODIGO>
+                    <TEXTO>{validationCompleted=false, codigoDispositivo=GPS83-TPV-17, IP=187.140.39.17, isValid=false, validIPS=(83): [163.192.134.186], idDistribuidor=83}</TEXTO>
+                  </MENSAJE>
+                </RESPONSE>
+                """;
+
+        GestoPagoTxResponse response = parser.parse(xml);
+
+        assertEquals("05", response.getCodigo());
+        assertEquals(GestoPagoTxXmlParser.IP_BLOCKED_MESSAGE, response.getTexto());
+        assertFalse(response.getTexto().contains("validIPS"));
+    }
+
+    @Test
     void parse_rejectsDoctype() {
         assertThrows(IllegalArgumentException.class,
                 () -> parser.parse("<!DOCTYPE foo [<!ENTITY xxe SYSTEM 'file:///etc/passwd'>]><RESPONSE>&xxe;</RESPONSE>"));

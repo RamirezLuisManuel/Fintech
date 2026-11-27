@@ -38,6 +38,8 @@ public class ClienteController {
                 "mensaje", "Cliente registrado exitosamente",
                 "numero_cuenta", resultado.getNumeroCuenta(),
                 "pin", resultado.getPin(),
+                "totp_secret", resultado.getTotpSecret() != null ? resultado.getTotpSecret() : "",
+                "totp_uri", resultado.getTotpUri() != null ? resultado.getTotpUri() : "",
                 "aviso_seguridad", resultado.getAviso()
         );
         return new ResponseEntity<>(GenericResponse.exito("Cliente registrado exitosamente", data), HttpStatus.CREATED);

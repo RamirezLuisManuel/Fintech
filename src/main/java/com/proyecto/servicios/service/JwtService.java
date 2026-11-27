@@ -20,10 +20,10 @@ public class JwtService {
     @Value("${jwt.secret:defaultSecretKeyLongEnoughForHS256algorithm1234567890}")
     private String secretKey;
 
-    @Value("${jwt.expiration:86400000}")
+    @Value("${jwt.expiration:300000}")
     private long jwtExpiration;
 
-    @Value("${jwt.refresh-expiration:604800000}")
+    @Value("${jwt.refresh-expiration:1800000}")
     private long refreshExpiration;
 
     private Key getSignInKey() {
@@ -65,9 +65,22 @@ public class JwtService {
                 .compact();
     }
 
+    public long getJwtExpirationMs() {
+        return jwtExpiration;
+    }
+
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
         return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+    }
+
+    public boolean isTokenStillValid(String token) {
+        if (token == null || token.isBlank()) return false;
+        try {
+            return !isTokenExpired(token);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private boolean isTokenExpired(String token) {

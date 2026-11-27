@@ -178,4 +178,90 @@ class GestoPagoPaymentServiceTest {
                 () -> service.procesarPago(request, null, 2L));
         verify(stateService, never()).createAndReserve(any());
     }
+
+    @Test
+    void procesarPago_supportsTipoFront40AndNormalizesIpErrorTo05() {
+        product.setIdProducto(20093);
+        product.setIdServicio(3469);
+        product.setTipoFront(40);
+        product.setIdCatTipoServicio(8);
+        product.setTipoReferencia("b");
+        product.setPrecio(12.00);
+
+        request.setIdProducto(20093);
+        request.setMonto(new BigDecimal("500.00"));
+        request.setTelefono(null);
+        request.setReferencia("4152313812345678");
+
+        when(transactionRepository.findByIdempotencyKey("idem-1")).thenReturn(Optional.empty());
+        when(transactionRepository.existsByUpc(any())).thenReturn(false);
+        when(usuarioRepository.findById(2L)).thenReturn(Optional.of(usuario));
+        when(cuentaRepository.findByNumeroCuenta("1234567890")).thenReturn(Optional.of(cuenta));
+        when(productRepository.findById(20093)).thenReturn(Optional.of(product));
+        when(stateService.createAndReserve(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        GestoPagoTxResponse rawIpError = GestoPagoTxResponse.builder()
+                .codigo("55")
+                .texto("{validationCompleted=false, isValid=false, validIPS=(83): [1.2.3.4]}")
+                .build();
+        when(gatewayService.sendTx(any())).thenReturn(rawIpError);
+        when(stateService.markFailed(any(), any())).thenAnswer(invocation -> {
+            GestoPagoTxResponse normalized = invocation.getArgument(1);
+            GestoPagoTransaction failedTx = new GestoPagoTransaction();
+            failedTx.setEstado(GestoPagoTransactionStatus.FAILED);
+            failedTx.setMonto(new BigDecimal("500.00"));
+            failedTx.setProviderCode(normalized.getCodigo());
+            failedTx.setProviderMessage(normalized.getTexto());
+            return failedTx;
+        });
+
+        PaymentTransactionResponse response = service.procesarPago(request, null, 2L);
+
+        assertEquals(GestoPagoTransactionStatus.FAILED, response.getEstado());
+        assertEquals("05", response.getProviderCode());
+        assertFalse(response.getProviderMessage().contains("validIPS"));
+        verify(stateService).markFailed(any(), any());
+    }
+
+    @Test
+    void procesarPago_tipoFront4VerifyReferenceIpBlockMarksFailed05() {
+        product.setIdProducto(7357);
+        product.setIdServicio(100);
+        product.setTipoFront(4);
+        product.setIdCatTipoServicio(5);
+        product.setTipoReferencia("b");
+        product.setPrecio(0.00);
+
+        request.setIdProducto(7357);
+        request.setMonto(new BigDecimal("250.00"));
+        request.setTelefono(null);
+        request.setReferencia("9988776655");
+
+        when(transactionRepository.findByIdempotencyKey("idem-1")).thenReturn(Optional.empty());
+        when(transactionRepository.existsByUpc(any())).thenReturn(false);
+        when(usuarioRepository.findById(2L)).thenReturn(Optional.of(usuario));
+        when(cuentaRepository.findByNumeroCuenta("1234567890")).thenReturn(Optional.of(cuenta));
+        when(productRepository.findById(7357)).thenReturn(Optional.of(product));
+        when(stateService.createAndReserve(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(gatewayService.verifyReference(any())).thenReturn(GestoPagoTxResponse.builder()
+                .codigo("55")
+                .texto("{validationCompleted=false, validIPS=(83)}")
+                .build());
+        when(stateService.markFailed(any(), any())).thenAnswer(invocation -> {
+            GestoPagoTxResponse normalized = invocation.getArgument(1);
+            GestoPagoTransaction failedTx = new GestoPagoTransaction();
+            failedTx.setEstado(GestoPagoTransactionStatus.FAILED);
+            failedTx.setMonto(new BigDecimal("250.00"));
+            failedTx.setProviderCode(normalized.getCodigo());
+            failedTx.setProviderMessage(normalized.getTexto());
+            return failedTx;
+        });
+
+        PaymentTransactionResponse response = service.procesarPago(request, null, 2L);
+
+        assertEquals(GestoPagoTransactionStatus.FAILED, response.getEstado());
+        assertEquals("05", response.getProviderCode());
+        verify(gatewayService, never()).sendTx(any());
+        verify(stateService).markFailed(any(), any());
+    }
 }

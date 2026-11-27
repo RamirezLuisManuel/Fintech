@@ -120,7 +120,7 @@ class UsuarioServiceImplTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
         when(usuarioRepository.save(any())).thenReturn(usuarioActivo);
         usuarioService.login(authRequest);
-        verify(valueOps).set("user_session:juan@test.com", "refresh");
+        verify(valueOps).set(eq("user_session:juan@test.com"), eq("refresh"), any(java.time.Duration.class));
     }
 
     @Test @DisplayName("TC-USRSVC-07: Login falla si el usuario esta dado de baja")

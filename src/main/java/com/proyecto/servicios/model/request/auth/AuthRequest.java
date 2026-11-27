@@ -8,10 +8,14 @@ import jakarta.validation.constraints.NotBlank;
 @Getter
 @Setter
 public class AuthRequest {
-    @NotBlank
-    @Email
+    @NotBlank(message = "El correo es obligatorio")
+    @Email(message = "Formato de correo invalido")
     private String correo;
     
-    @NotBlank
+    @NotBlank(message = "La contrasena es obligatoria")
     private String password;
+
+    private String codigo2fa;
+    private Boolean forceClosePrevious;
+    private String platform;
 }

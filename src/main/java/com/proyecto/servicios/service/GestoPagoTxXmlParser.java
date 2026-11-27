@@ -15,9 +15,51 @@ import java.math.BigDecimal;
 @Service
 public class GestoPagoTxXmlParser {
 
+    public static final String IP_BLOCKED_CODE = "05";
+    public static final String IP_BLOCKED_MESSAGE =
+            "Acceso denegado por GestoPago (Código 05): la dirección IP de origen no está autorizada para operar.";
+
+    public static boolean isIpValidationFailure(String codigo, String texto) {
+        if ("05".equals(codigo) || "55".equals(codigo)) {
+            return true;
+        }
+        if (texto == null || texto.isBlank()) {
+            return false;
+        }
+        String lower = texto.toLowerCase();
+        return lower.contains("validationcompleted")
+                || lower.contains("validips")
+                || lower.contains("isvalid=false")
+                || lower.contains("codigodispositivo=")
+                || lower.contains("iddistribuidor=")
+                || lower.contains("ip no autorizada")
+                || lower.contains("ip bloqueada");
+    }
+
+    public static GestoPagoTxResponse normalizeResponse(GestoPagoTxResponse response) {
+        if (response == null) {
+            return null;
+        }
+        if (isIpValidationFailure(response.getCodigo(), response.getTexto())) {
+            response.setCodigo(IP_BLOCKED_CODE);
+            response.setTexto(IP_BLOCKED_MESSAGE);
+        }
+        return response;
+    }
+
+    public static GestoPagoTxResponse buildIpBlockedResponse() {
+        return GestoPagoTxResponse.builder()
+                .codigo(IP_BLOCKED_CODE)
+                .texto(IP_BLOCKED_MESSAGE)
+                .build();
+    }
+
     public GestoPagoTxResponse parse(String xml) {
         if (xml == null || xml.isBlank()) {
             throw new IllegalArgumentException("GestoPago devolvio una respuesta vacia");
+        }
+        if (isIpValidationFailure(null, xml) && !xml.trim().startsWith("<")) {
+            return buildIpBlockedResponse();
         }
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
@@ -32,7 +74,7 @@ public class GestoPagoTxXmlParser {
 
             String rootId = text(root, "ID_TX");
             String messageId = message == null ? null : text(message, "ID_TX");
-            return GestoPagoTxResponse.builder()
+            GestoPagoTxResponse parsed = GestoPagoTxResponse.builder()
                     .codigo(message == null ? null : text(message, "CODIGO"))
                     .texto(message == null ? null : text(message, "TEXTO"))
                     .idTx(rootId != null ? rootId : messageId)
@@ -45,7 +87,11 @@ public class GestoPagoTxXmlParser {
                     .pin(message == null ? null : text(message, "PIN"))
                     .legend(message == null ? null : text(message, "legend"))
                     .build();
+            return normalizeResponse(parsed);
         } catch (Exception ex) {
+            if (isIpValidationFailure(null, xml)) {
+                return buildIpBlockedResponse();
+            }
             throw new IllegalArgumentException("La respuesta XML de GestoPago no es valida", ex);
         }
     }

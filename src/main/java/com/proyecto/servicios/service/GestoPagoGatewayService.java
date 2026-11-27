@@ -54,6 +54,18 @@ public class GestoPagoGatewayService {
         } catch (FeignException ex) {
             if (ex.status() == 401 || ex.status() == 403) {
                 tokenService.invalidarTokenActual();
+                if (operation == Operation.SEND || operation == Operation.VERIFY_REFERENCE) {
+                    return GestoPagoTxXmlParser.buildIpBlockedResponse();
+                }
+            }
+            if ((operation == Operation.SEND || operation == Operation.VERIFY_REFERENCE)
+                    && GestoPagoTxXmlParser.isIpValidationFailure(null, ex.contentUTF8())) {
+                return GestoPagoTxXmlParser.buildIpBlockedResponse();
+            }
+            throw ex;
+        } catch (IllegalStateException ex) {
+            if (operation == Operation.SEND || operation == Operation.VERIFY_REFERENCE) {
+                return GestoPagoTxXmlParser.buildIpBlockedResponse();
             }
             throw ex;
         }

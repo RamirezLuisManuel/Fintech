@@ -45,4 +45,13 @@ public class GestoPagoTransactionController {
         return ResponseEntity.ok(GenericResponse.exito(
                 paymentService.consultarPago(request, principal.getUsuarioId())));
     }
+
+    @PostMapping("/historial")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<GenericResponse<java.util.List<PaymentTransactionResponse>>> historial(
+            @AuthenticationPrincipal CustomUserDetails principal) {
+        return ResponseEntity.ok(GenericResponse.exito(
+                "Historial de transacciones obtenido exitosamente",
+                paymentService.listarHistorial(principal.getUsuarioId())));
+    }
 }

@@ -24,6 +24,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     @Autowired
+    private AntiInjectionFilter antiInjectionFilter;
+
+    @Autowired
     private JwtAuthenticationFilter jwtAuthFilter;
 
     @Autowired
@@ -32,9 +35,10 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+            .cors(org.springframework.security.config.Customizer.withDefaults())
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/v1/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/v1/clientes", "/api/v1/gestopago/products/**").permitAll() // POST /clientes y catalogo de productos libre
+                .requestMatchers("/api/v1/auth/**", "/swagger-ui/**", "/v3/api-docs/**", "/api/v1/clientes", "/api/v1/gestopago/products/**", "/api/v1/catalogos/**").permitAll() // POST /clientes y catalogos libres
                 .anyRequest().authenticated()
             )
             .exceptionHandling(exc -> exc
@@ -51,8 +55,16 @@ public class SecurityConfig {
                     response.getWriter().write("{\"codigo\": 2, \"mensaje\": \"Acceso denegado: No tienes permisos para acceder a este recurso o no te pertenece.\"}");
                 })
             )
+            .headers(headers -> headers
+                .contentTypeOptions(org.springframework.security.config.Customizer.withDefaults())
+                .frameOptions(frame -> frame.deny())
+                .cacheControl(org.springframework.security.config.Customizer.withDefaults())
+                .referrerPolicy(ref -> ref.policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; frame-ancestors 'none'; object-src 'none'"))
+            )
             .sessionManagement(sess -> sess.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authenticationProvider(authenticationProvider())
+            .addFilterBefore(antiInjectionFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
