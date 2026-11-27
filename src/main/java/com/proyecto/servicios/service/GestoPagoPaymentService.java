@@ -112,10 +112,6 @@ public class GestoPagoPaymentService {
         GestoPagoPaymentValidator.ValidatedPayment validated =
                 paymentValidator.validateProductAndBuildInput(product, request);
 
-        if (product.getTipoFront() == 4) {
-            paymentValidator.verifyReference(product, validated.referencia());
-        }
-
         // 5. Crear transaccion y reservar saldo atomicamente
         String upc = generateUniqueUpc();
         String horaLocal = LocalDateTime.now(ZoneId.of(timeZone)).format(GESTOPAGO_TIME);
@@ -149,20 +145,75 @@ public class GestoPagoPaymentService {
             return PaymentTransactionResponse.fromEntity(concurrent);
         }
 
-        // 6. Enviar a GestoPago sendTx.do
+        // 6. Verificar referencia si tipoFront == 4 y enviar a GestoPago sendTx.do
         try {
-            GestoPagoTxResponse response = gatewayService.sendTx(payloadJson);
+            if (Integer.valueOf(4).equals(product.getTipoFront())) {
+                GestoPagoTxResponse verifyResponse = GestoPagoTxXmlParser.normalizeResponse(
+                        paymentValidator.verifyReferenceCheck(product, validated.referencia()));
+                if (verifyResponse == null || !verifyResponse.isSuccessfulSendTx()) {
+                    GestoPagoTxResponse failedVerify = verifyResponse != null
+                            ? verifyResponse
+                            : GestoPagoTxXmlParser.buildIpBlockedResponse();
+                    GestoPagoTransaction failedTx = stateService.markFailed(tx.getId(), failedVerify);
+                    PaymentTransactionResponse dto = PaymentTransactionResponse.fromEntity(failedTx);
+                    dto.setProductoNombre(product.getProducto());
+                    dto.setServicioNombre(product.getServicio());
+                    return dto;
+                }
+            }
+
+            GestoPagoTxResponse response = GestoPagoTxXmlParser.normalizeResponse(gatewayService.sendTx(payloadJson));
             GestoPagoTransaction result = response.isSuccessfulSendTx()
                     ? stateService.markSucceeded(tx.getId(), response)
                     : ("06".equals(response.getCodigo()) || response.getCodigo() == null)
                     ? stateService.markUnknown(tx.getId(), response, "GestoPago no confirmo de forma concluyente")
                     : stateService.markFailed(tx.getId(), response);
-            return PaymentTransactionResponse.fromEntity(result);
+            PaymentTransactionResponse dto = PaymentTransactionResponse.fromEntity(result);
+            dto.setProductoNombre(product.getProducto());
+            dto.setServicioNombre(product.getServicio());
+            return dto;
+        } catch (feign.FeignException ex) {
+            if (ex.status() == 401 || ex.status() == 403
+                    || GestoPagoTxXmlParser.isIpValidationFailure(null, ex.contentUTF8())) {
+                log.warn("GestoPago rechazo acceso por IP/Auth en sendTx para operationId={}", tx.getId());
+                GestoPagoTransaction failed = stateService.markFailed(
+                        tx.getId(), GestoPagoTxXmlParser.buildIpBlockedResponse());
+                PaymentTransactionResponse dto = PaymentTransactionResponse.fromEntity(failed);
+                dto.setProductoNombre(product.getProducto());
+                dto.setServicioNombre(product.getServicio());
+                return dto;
+            }
+            log.warn("Resultado incierto (FeignException {}) en sendTx para operationId={}: {}", ex.status(), tx.getId(), ex.getMessage());
+            GestoPagoTransaction unknown = stateService.markUnknown(
+                    tx.getId(), null, "Sin respuesta concluyente de GestoPago; pendiente de confirmacion");
+            PaymentTransactionResponse dto = PaymentTransactionResponse.fromEntity(unknown);
+            dto.setProductoNombre(product.getProducto());
+            dto.setServicioNombre(product.getServicio());
+            return dto;
+        } catch (IllegalStateException ex) {
+            log.warn("Error de estado/autenticacion previo en GestoPago para operationId={}: {}", tx.getId(), ex.getMessage());
+            GestoPagoTransaction failed = stateService.markFailed(
+                    tx.getId(), GestoPagoTxXmlParser.buildIpBlockedResponse());
+            PaymentTransactionResponse dto = PaymentTransactionResponse.fromEntity(failed);
+            dto.setProductoNombre(product.getProducto());
+            dto.setServicioNombre(product.getServicio());
+            return dto;
         } catch (RuntimeException ex) {
+            if (GestoPagoTxXmlParser.isIpValidationFailure(null, ex.getMessage())) {
+                GestoPagoTransaction failed = stateService.markFailed(
+                        tx.getId(), GestoPagoTxXmlParser.buildIpBlockedResponse());
+                PaymentTransactionResponse dto = PaymentTransactionResponse.fromEntity(failed);
+                dto.setProductoNombre(product.getProducto());
+                dto.setServicioNombre(product.getServicio());
+                return dto;
+            }
             log.warn("Resultado incierto en sendTx para operationId={}: {}", tx.getId(), ex.getMessage());
             GestoPagoTransaction unknown = stateService.markUnknown(
                     tx.getId(), null, "Sin respuesta concluyente de GestoPago; pendiente de confirmacion");
-            return PaymentTransactionResponse.fromEntity(unknown);
+            PaymentTransactionResponse dto = PaymentTransactionResponse.fromEntity(unknown);
+            dto.setProductoNombre(product.getProducto());
+            dto.setServicioNombre(product.getServicio());
+            return dto;
         }
     }
 
@@ -171,7 +222,31 @@ public class GestoPagoPaymentService {
     }
 
     public PaymentTransactionResponse get(UUID operationId, Long authenticatedUserId) {
-        return PaymentTransactionResponse.fromEntity(stateService.getOwned(operationId, authenticatedUserId));
+        GestoPagoTransaction tx = stateService.getOwned(operationId, authenticatedUserId);
+        return enrichWithProduct(PaymentTransactionResponse.fromEntity(tx));
+    }
+
+    public List<PaymentTransactionResponse> listarHistorial(Long authenticatedUserId) {
+        return transactionRepository.findByUsuarioIdOrderByCreatedAtDesc(authenticatedUserId)
+                .stream()
+                .map(tx -> enrichWithProduct(PaymentTransactionResponse.fromEntity(tx)))
+                .toList();
+    }
+
+    private PaymentTransactionResponse enrichWithProduct(PaymentTransactionResponse res) {
+        if (res != null) {
+            if (GestoPagoTxXmlParser.isIpValidationFailure(res.getProviderCode(), res.getProviderMessage())) {
+                res.setProviderCode(GestoPagoTxXmlParser.IP_BLOCKED_CODE);
+                res.setProviderMessage(GestoPagoTxXmlParser.IP_BLOCKED_MESSAGE);
+            }
+            if (res.getIdProducto() != null) {
+                productRepository.findById(res.getIdProducto()).ifPresent(p -> {
+                    res.setProductoNombre(p.getProducto());
+                    res.setServicioNombre(p.getServicio());
+                });
+            }
+        }
+        return res;
     }
 
     @Scheduled(fixedDelayString = "${gestopago.confirmation.fixed-delay-ms:30000}")
@@ -184,7 +259,8 @@ public class GestoPagoPaymentService {
         try {
             stateService.claimForConfirmation(operationId).ifPresent(tx -> {
                 try {
-                    GestoPagoTxResponse response = gatewayService.confirmTx(tx.getPayloadJson());
+                    GestoPagoTxResponse response = GestoPagoTxXmlParser.normalizeResponse(
+                            gatewayService.confirmTx(tx.getPayloadJson()));
                     if (response.isConfirmedAsApplied()) {
                         stateService.markSucceeded(operationId, response);
                     } else if (response.isConfirmedAsNotApplied()) {
@@ -205,7 +281,7 @@ public class GestoPagoPaymentService {
 
     @SneakyThrows
     private String buildSendPayloadJson(GestoPagoTransaction tx, String horaLocal) {
-        boolean servicePayment = tx.getTipoFront() == 2 || tx.getTipoFront() == 4;
+        boolean servicePayment = tx.getTipoFront() != null && tx.getTipoFront() != 1;
         return objectMapper.writeValueAsString(GestoPagoSendTxPayload.builder()
                 .idProducto(tx.getIdProducto())
                 .idServicio(tx.getIdServicio())

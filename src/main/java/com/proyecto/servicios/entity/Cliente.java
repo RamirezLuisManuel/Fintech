@@ -59,10 +59,10 @@ public class Cliente {
     @Column(name = "telefono_alternativo", length = 10)
     private String telefonoAlternativo;
 
-    @Column(nullable = false, length = 100)
+    @Column(length = 100)
     private String ocupacion;
 
-    @Column(nullable = false, length = 100)
+    @Column(length = 100)
     private String empresa;
 
     @Column(name = "ingreso_mensual", nullable = false, precision = 24, scale = 2)

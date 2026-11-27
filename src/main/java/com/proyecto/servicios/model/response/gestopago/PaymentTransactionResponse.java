@@ -13,10 +13,17 @@ import java.util.UUID;
 @Builder
 public class PaymentTransactionResponse {
     private UUID operationId;
+    private String upc;
     private GestoPagoTransactionStatus estado;
     private BigDecimal monto;
     private Integer idProducto;
     private Integer idServicio;
+    private Integer tipoFront;
+    private String productoNombre;
+    private String servicioNombre;
+    private String telefono;
+    private String referencia;
+    private String numeroCuenta;
     private String providerCode;
     private String providerMessage;
     private String providerTransactionId;
@@ -29,10 +36,15 @@ public class PaymentTransactionResponse {
     public static PaymentTransactionResponse fromEntity(GestoPagoTransaction tx) {
         return PaymentTransactionResponse.builder()
                 .operationId(tx.getId())
+                .upc(tx.getUpc())
                 .estado(tx.getEstado())
                 .monto(tx.getMonto())
                 .idProducto(tx.getIdProducto())
                 .idServicio(tx.getIdServicio())
+                .tipoFront(tx.getTipoFront())
+                .telefono(tx.getTelefono())
+                .referencia(tx.getReferencia())
+                .numeroCuenta(tx.getCuenta() != null ? tx.getCuenta().getNumeroCuenta() : null)
                 .providerCode(tx.getProviderCode())
                 .providerMessage(tx.getProviderMessage())
                 .providerTransactionId(tx.getProviderTransactionId())

@@ -11,10 +11,16 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
+import java.util.Map;
 
 public interface UsuarioService {
     AuthResponse register(RegisterRequest request);
     AuthResponse login(AuthRequest request);
+    AuthResponse preLogin(AuthRequest request);
+    AuthResponse verify2faAndLogin(AuthRequest request);
+    AuthResponse refreshSession(String correo, String refreshToken);
+    void logout(String username);
+    Map<String, Object> obtenerPerfilActual(String username);
     List<UsuarioResponseDTO> listarTodos();
     Page<UsuarioResponseDTO> listarPaginado(Pageable pageable);
     void cambiarPassword(String username, PasswordChangeDTO request);

@@ -33,6 +33,8 @@ public class OnboardingServiceImpl implements OnboardingService {
     private CuentaRepository cuentaRepository;
     @Autowired
     private UsuarioRepository usuarioRepository;
+    @Autowired
+    private com.proyecto.servicios.service.TotpService totpService;
 
     @Override
     @Transactional
@@ -51,6 +53,27 @@ public class OnboardingServiceImpl implements OnboardingService {
             throw new OnboardingException(HttpStatus.CONFLICT, "El correo electronico ya esta registrado.");
         }
 
+        boolean tieneEmpresa = request.getEmpresa() != null && !request.getEmpresa().isBlank();
+        boolean tieneOcupacion = request.getOcupacion() != null && !request.getOcupacion().isBlank();
+        boolean esEstudiante = tieneOcupacion && "Estudiante".equalsIgnoreCase(request.getOcupacion().trim());
+        BigDecimal ingreso = request.getIngresoMensual() != null ? request.getIngresoMensual() : BigDecimal.ZERO;
+        boolean tieneIngresoPositivo = ingreso.compareTo(BigDecimal.ZERO) > 0;
+
+        if (tieneEmpresa && !tieneOcupacion) {
+            throw new OnboardingException(HttpStatus.BAD_REQUEST, "Si ingresa una empresa, primero debe seleccionar una ocupacion.");
+        }
+        if (tieneOcupacion && !esEstudiante) {
+            if (!tieneEmpresa) {
+                throw new OnboardingException(HttpStatus.BAD_REQUEST, "Para la ocupacion seleccionada es obligatorio ingresar una empresa.");
+            }
+            if (!tieneIngresoPositivo) {
+                throw new OnboardingException(HttpStatus.BAD_REQUEST, "Para la ocupacion seleccionada el ingreso mensual es obligatorio y debe ser mayor a cero.");
+            }
+        }
+        if (tieneIngresoPositivo && !tieneOcupacion) {
+            throw new OnboardingException(HttpStatus.BAD_REQUEST, "Para registrar un ingreso mensual es requisito seleccionar primero una ocupacion.");
+        }
+
         Cliente cliente = new Cliente();
         cliente.setNombre(request.getNombre());
         cliente.setSegundoNombre(request.getSegundoNombre());
@@ -65,9 +88,9 @@ public class OnboardingServiceImpl implements OnboardingService {
         cliente.setCorreo(request.getCorreo());
         cliente.setTelefonoMovil(request.getTelefonoMovil());
         cliente.setTelefonoAlternativo(request.getTelefonoAlternativo());
-        cliente.setOcupacion(request.getOcupacion());
-        cliente.setEmpresa(request.getEmpresa());
-        cliente.setIngresoMensual(request.getIngresoMensual());
+        cliente.setEmpresa(tieneEmpresa ? request.getEmpresa().trim() : null);
+        cliente.setOcupacion(tieneOcupacion ? request.getOcupacion().trim() : null);
+        cliente.setIngresoMensual(ingreso);
 
         Domicilio dom = new Domicilio();
         dom.setCalle(request.getDomicilio().getCalle());
@@ -91,11 +114,14 @@ public class OnboardingServiceImpl implements OnboardingService {
         cuentaRepository.save(cuenta);
 
         String pin = generarPinSeguro();
+        String totpSecret = totpService.generateSecret();
+        String totpUri = totpService.generateOtpAuthUri(totpSecret, cliente.getCorreo(), "FintechGestoPago");
 
         Usuario usuario = new Usuario();
         usuario.setCliente(cliente);
         usuario.setPassword(passwordEncoder.encode(request.getPassword()));
         usuario.setPin(passwordEncoder.encode(pin));
+        usuario.setTotpSecret(totpSecret);
         usuario.setRol("CLIENTE");
         usuario.setFaceIdEnabled(false);
         usuarioRepository.save(usuario);
@@ -103,7 +129,9 @@ public class OnboardingServiceImpl implements OnboardingService {
         return RegistroClienteResponseDTO.builder()
                 .numeroCuenta(cuenta.getNumeroCuenta())
                 .pin(pin)
-                .aviso("Guarde este PIN en un lugar seguro. Por motivos de seguridad, es la única vez que se mostrará.")
+                .totpSecret(totpSecret)
+                .totpUri(totpUri)
+                .aviso("Guarde su PIN y configure Google Authenticator con su clave secreta.")
                 .build();
     }
 

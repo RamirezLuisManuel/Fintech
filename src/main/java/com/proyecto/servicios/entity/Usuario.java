@@ -42,6 +42,9 @@ public class Usuario {
     @Column(name = "refresh_token")
     private String refreshToken;
 
+    @Column(name = "totp_secret", length = 64)
+    private String totpSecret;
+
     @Column(nullable = false)
     private Boolean activo = true;
 

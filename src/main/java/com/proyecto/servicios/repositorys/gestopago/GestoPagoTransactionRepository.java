@@ -31,4 +31,7 @@ public interface GestoPagoTransactionRepository extends JpaRepository<GestoPagoT
     List<UUID> findIdsReadyForConfirmation(
             @Param("statuses") Collection<GestoPagoTransactionStatus> statuses,
             @Param("now") LocalDateTime now);
+
+    @EntityGraph(attributePaths = {"usuario", "cliente", "cuenta"})
+    List<GestoPagoTransaction> findByUsuarioIdOrderByCreatedAtDesc(Long usuarioId);
 }

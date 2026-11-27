@@ -13,5 +13,13 @@ public class RegistroClienteResponseDTO {
     private String numeroCuenta;
     private String pin;
     private String aviso;
+    private String totpSecret;
+    private String totpUri;
+
+    public RegistroClienteResponseDTO(String numeroCuenta, String pin, String aviso) {
+        this.numeroCuenta = numeroCuenta;
+        this.pin = pin;
+        this.aviso = aviso;
+    }
 }
 

@@ -115,6 +115,8 @@ public class GestoPagoPaymentValidator {
         return buildInput(product, request.getIdServicio(), request.getMonto(), request.getTelefono(), request.getReferencia());
     }
 
+    private static final List<Integer> SUPPORTED_TIPO_FRONT = List.of(1, 2, 4, 5, 30, 40);
+
     private ValidatedPayment buildInput(
             GestoPagoProduct product, Integer requestIdServicio, BigDecimal monto, String rawTelefono, String rawReferencia) {
         if (product.getIdServicio() == null) {
@@ -126,7 +128,7 @@ public class GestoPagoPaymentValidator {
                     "El idServicio enviado no corresponde con el producto seleccionado en el catalogo");
         }
         Integer tipoFront = product.getTipoFront();
-        if (tipoFront == null || !List.of(1, 2, 4).contains(tipoFront)) {
+        if (tipoFront == null || !SUPPORTED_TIPO_FRONT.contains(tipoFront)) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "El tipoFront del producto aun no esta soportado para pagos");
         }
@@ -157,7 +159,9 @@ public class GestoPagoPaymentValidator {
             return new ValidatedPayment(phoneOrReference, null);
         }
 
-        String reference = StringUtils.trimToNull(rawReferencia);
+        String reference = StringUtils.isNotBlank(rawReferencia)
+                ? rawReferencia.trim()
+                : StringUtils.trimToNull(rawTelefono);
         if (StringUtils.isBlank(reference) || reference.length() > 100 || !reference.matches("[A-Za-z0-9#-]+")) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "La referencia debe ser alfanumerica y contener entre 1 y 100 caracteres");
@@ -166,15 +170,23 @@ public class GestoPagoPaymentValidator {
     }
 
     @SneakyThrows
-    public void verifyReference(GestoPagoProduct product, String reference) {
+    public GestoPagoTxResponse verifyReferenceCheck(GestoPagoProduct product, String reference) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("idProducto", product.getIdProducto());
         payload.put("idServicio", product.getIdServicio());
         payload.put("referencia", reference);
         GestoPagoTxResponse response = gatewayService.verifyReference(objectMapper.writeValueAsString(payload));
-        if (!"01".equals(response.getCodigo())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    response.getTexto() == null ? "La referencia no es valida" : response.getTexto());
+        return GestoPagoTxXmlParser.normalizeResponse(response);
+    }
+
+    @SneakyThrows
+    public void verifyReference(GestoPagoProduct product, String reference) {
+        GestoPagoTxResponse response = verifyReferenceCheck(product, reference);
+        if (response == null || !"01".equals(response.getCodigo())) {
+            String msg = response == null || response.getTexto() == null
+                    ? "La referencia no es valida"
+                    : response.getTexto();
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, msg);
         }
     }
 

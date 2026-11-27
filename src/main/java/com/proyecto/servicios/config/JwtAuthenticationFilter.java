@@ -44,6 +44,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
                 if (userDetails.isEnabled() && jwtService.isTokenValid(jwt, userDetails)) {
+                    String sessionHeader = request.getHeader("X-Session-Token");
+                    if (sessionHeader != null && !sessionHeader.isBlank() && userDetails instanceof CustomUserDetails customDetails) {
+                        String activeRefreshToken = customDetails.getUsuario().getRefreshToken();
+                        if (activeRefreshToken == null || !sessionHeader.equals(activeRefreshToken)) {
+                            response.setContentType("application/json");
+                            response.setCharacterEncoding("UTF-8");
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.getWriter().write("{\"codigo\": 2, \"mensaje\": \"SESION_DESPLAZADA: Tu sesion fue finalizada porque se inicio sesion en otro dispositivo o cerraste sesion.\"}");
+                            return;
+                        }
+                    }
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities()
                     );
